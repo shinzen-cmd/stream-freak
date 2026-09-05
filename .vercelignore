@@ -1,0 +1,8 @@
+android/
+.git/
+.github/
+*.apk
+*.idsig
+*.jks
+.idea/
+.vscode/
