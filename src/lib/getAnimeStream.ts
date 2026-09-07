@@ -196,6 +196,18 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
 
   const fallbackEmbeds = getAnimeEmbedMirrors(params);
 
+  // Fast path: skip worker queries, go straight to embed mirrors
+  const quickResult: AnimeStreamResult = {
+    success: true,
+    provider: "Embed Mirror Gateway",
+    tier: 3,
+    directSources: [],
+    subtitles: [],
+    embedUrl: fallbackEmbeds[0]?.url ?? "",
+    fallbackEmbeds,
+  };
+  return quickResult;
+
   try {
     const malId = isValidId(params.malId) ? String(params.malId) : "";
     const title = params.title || "";
@@ -285,11 +297,12 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
 
       // Pre-resolve Server 1 fast (under 2.5s)
       let initialEmbedUrl = fallbackEmbeds[0]?.url || "";
-      if (allServerOptions[0]?.embedApi) {
+      const firstApi = allServerOptions[0]?.embedApi;
+      if (firstApi) {
         try {
-          const firstRes = await queryWorker(allServerOptions[0].embedApi);
-          if (firstRes?.data) {
-            const d = firstRes.data;
+          const firstRes = await queryWorker(firstApi as string);
+          if ((firstRes as any)?.data) {
+            const d = (firstRes as any).data;
             const resolved =
               d.embedUrl ||
               d.rawEmbedUrl ||
