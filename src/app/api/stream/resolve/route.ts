@@ -338,33 +338,46 @@ export async function GET(req: NextRequest) {
     season: number = 1,
     episode: number = 1
   ): Promise<string | null> {
-    try {
-      const url =
-        mediaType === "movie"
-          ? `https://vidsrc.to/api/source/tmdb/${tmdbId}`
-          : `https://vidsrc.to/api/source/tmdb/${tmdbId}?s=${season}&e=${episode}`;
+    const endpoints =
+      mediaType === "movie"
+        ? [
+            `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
+            `https://vidsrc.to/embed/movie/${tmdbId}`,
+            `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
+          ]
+        : [
+            `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
+            `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`,
+            `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
+          ];
 
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": USER_AGENT,
-        },
-      });
+    for (const url of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
 
-      if (!res.ok) return null;
-      const json = await res.json();
-      const sources = json?.result?.sources;
-      if (Array.isArray(sources)) {
-        const match = sources.find(
-          (item: any) => typeof item?.url === "string" && item.url.includes(".m3u8")
-        );
-        if (match?.url) {
-          return match.url;
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent": USER_AGENT,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) continue;
+
+        const html = await res.text();
+        const match = html.match(/https:\/\/[^"']+\.m3u8[^"']*/);
+        if (match && match[0]) {
+          return match[0];
         }
+      } catch {
+        // try next endpoint
       }
-      return null;
-    } catch {
-      return null;
     }
+
+    return null;
   }
 
   const targetTmdbId = tmdbId || id;
