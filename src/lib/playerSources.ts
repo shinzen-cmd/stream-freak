@@ -81,11 +81,11 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
     }
 
     return [
-      { id: "s1", name: "Server 1 (VidLink HD)", url: `https://vidlink.pro/movie/${targetId}` },
-      { id: "s2", name: "Server 2 (VidSrc)", url: `https://vidsrc.me/embed/movie?tmdb=${targetId}` },
-      { id: "s3", name: "Server 3 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1` },
-      { id: "s4", name: "Server 4 (VidSrc PM)", url: `https://vidsrc.pm/embed/movie/${targetId}` },
-      { id: "s5", name: "Server 5 (VidSrc SU)", url: `https://vidsrc.su/embed/movie/${targetId}` },
+      { id: "s1", name: "Server 1 (VidCore HD)", url: `https://vidcore.org/embed/movie/${targetId}` },
+      { id: "s2", name: "Server 2 (VidLink HD)", url: `https://vidlink.pro/movie/${targetId}` },
+      { id: "s3", name: "Server 3 (VidSrc)", url: `https://vidsrc.me/embed/movie?tmdb=${targetId}` },
+      { id: "s4", name: "Server 4 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1` },
+      { id: "s5", name: "Server 5 (VidSrc PM)", url: `https://vidsrc.pm/embed/movie/${targetId}` },
     ];
   }
 
@@ -122,11 +122,11 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
     }
 
     return [
-      { id: "s1", name: "Server 1 (VidLink HD)", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}` },
-      { id: "s2", name: "Server 2 (VidSrc)", url: `https://vidsrc.me/embed/tv?tmdb=${targetId}&season=${season}&episode=${episode}` },
-      { id: "s3", name: "Server 3 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}` },
-      { id: "s4", name: "Server 4 (VidSrc PM)", url: `https://vidsrc.pm/embed/tv/${targetId}/${season}/${episode}` },
-      { id: "s5", name: "Server 5 (VidSrc SU)", url: `https://vidsrc.su/embed/tv/${targetId}/${season}/${episode}` },
+      { id: "s1", name: "Server 1 (VidCore HD)", url: `https://vidcore.org/embed/tv/${targetId}/${season}/${episode}` },
+      { id: "s2", name: "Server 2 (VidLink HD)", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}` },
+      { id: "s3", name: "Server 3 (VidSrc)", url: `https://vidsrc.me/embed/tv?tmdb=${targetId}&season=${season}&episode=${episode}` },
+      { id: "s4", name: "Server 4 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}` },
+      { id: "s5", name: "Server 5 (VidSrc PM)", url: `https://vidsrc.pm/embed/tv/${targetId}/${season}/${episode}` },
     ];
   }
 

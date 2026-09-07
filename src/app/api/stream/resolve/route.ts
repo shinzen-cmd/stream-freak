@@ -332,6 +332,68 @@ export async function GET(req: NextRequest) {
   }
 
   // ── CASE 2: MOVIES & TV SHOWS STREAM RESOLUTION ───────────────────────────
+  async function resolveVidSrcTo(
+    tmdbId: string | number,
+    mediaType: MediaType,
+    season: number = 1,
+    episode: number = 1
+  ): Promise<string | null> {
+    try {
+      const url =
+        mediaType === "movie"
+          ? `https://vidsrc.to/api/source/tmdb/${tmdbId}`
+          : `https://vidsrc.to/api/source/tmdb/${tmdbId}?s=${season}&e=${episode}`;
+
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": USER_AGENT,
+        },
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json();
+      const sources = json?.result?.sources;
+      if (Array.isArray(sources)) {
+        const match = sources.find(
+          (item: any) => typeof item?.url === "string" && item.url.includes(".m3u8")
+        );
+        if (match?.url) {
+          return match.url;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  const targetTmdbId = tmdbId || id;
+  const defaultAudioTracks: StreamAudioTrack[] = [
+    { id: "original", label: "Original Audio (English)", lang: "en", isDefault: true },
+    { id: "hindi", label: "Hindi Dub (When Available)", lang: "hi" },
+    { id: "spanish", label: "Spanish Dub (When Available)", lang: "es" },
+  ];
+
+  if (targetTmdbId) {
+    const vidsrcUrl = await resolveVidSrcTo(targetTmdbId, mediaType, season, episode);
+    if (vidsrcUrl) {
+      const proxied = `/api/proxy/stream?url=${encodeURIComponent(vidsrcUrl)}&referer=${encodeURIComponent("https://vidsrc.to/")}`;
+      return NextResponse.json({
+        success: true,
+        streamUrl: proxied,
+        rawUrl: vidsrcUrl,
+        type: "hls",
+        quality: "1080p",
+        audioTracks: defaultAudioTracks,
+        subtitles: [],
+        provider: "VidSrc.to",
+        fallbackEmbedUrl: `https://vidsrc.to/embed/${mediaType}/${targetTmdbId}${
+          mediaType === "tv" ? `/${season}/${episode}` : ""
+        }`,
+      } as ResolvedDirectStreamResult);
+    }
+  }
+
   const servers = getPlayerServers({
     mediaType,
     id,
@@ -341,12 +403,6 @@ export async function GET(req: NextRequest) {
     audioMode,
     title,
   });
-
-  const defaultAudioTracks: StreamAudioTrack[] = [
-    { id: "original", label: "Original Audio (English)", lang: "en", isDefault: true },
-    { id: "hindi", label: "Hindi Dub (When Available)", lang: "hi" },
-    { id: "spanish", label: "Spanish Dub (When Available)", lang: "es" },
-  ];
 
   // Attempt stream extraction across servers in order
   for (const srv of servers) {
