@@ -194,6 +194,9 @@ export default function EpisodeSelector({
                     <span className="text-xs font-bold text-cyan-400">
                       E{ep.episodeNumber}
                     </span>
+                    <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded tracking-wide">
+                      1080p HD
+                    </span>
                     {ep.runtime && (
                       <span className="text-[11px] text-gray-400 flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {ep.runtime}m

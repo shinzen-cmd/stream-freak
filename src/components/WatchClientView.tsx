@@ -19,6 +19,7 @@ import { MediaDetail } from "@/types/media";
 import VideoPlayer from "@/components/VideoPlayerModal";
 import EpisodeSelector from "@/components/EpisodeSelector";
 import MediaRow from "@/components/MediaRow";
+import DownloadModal from "@/components/DownloadModal";
 import { useWatchlist } from "@/context/WatchlistContext";
 import { getAnimeStream } from "@/lib/getAnimeStream";
 
@@ -27,6 +28,20 @@ interface WatchClientViewProps {
   initialSeason?: number;
   initialEpisode?: number;
   autoPlay?: boolean;
+}
+
+function triggerBrowserDownload(url: string, targetFilename: string) {
+  if (typeof document === "undefined") return;
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", targetFilename);
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    document.body.removeChild(link);
+  }, 100);
 }
 
 export default function WatchClientView({
@@ -39,7 +54,12 @@ export default function WatchClientView({
   const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
   const [currentEpTitle, setCurrentEpTitle] = useState<string | undefined>(undefined);
   const [audioMode, setAudioMode] = useState<"sub" | "dub">("sub");
+  const [selectedLang, setSelectedLang] = useState<string>("en");
   const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadStreamUrl, setDownloadStreamUrl] = useState<string | null>(null);
+  const [downloadRawUrl, setDownloadRawUrl] = useState<string | null>(null);
+
 
   /**
    * Hydration guard: `isInWatchlist` reads localStorage which is client-only.
@@ -90,19 +110,6 @@ export default function WatchClientView({
       ? `${sanitizedTitle}.mp4` 
       : `${sanitizedTitle}_S${currentSeason}E${ep}.mp4`;
 
-    const triggerBrowserDownload = (url: string, targetFilename: string) => {
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", targetFilename);
-      link.setAttribute("target", "_blank");
-      link.setAttribute("rel", "noopener noreferrer");
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
-    };
-
     if (initialData.mediaType === "anime") {
       try {
         const res = await getAnimeStream({
@@ -122,38 +129,41 @@ export default function WatchClientView({
         // 2. Direct MP4 / HLS source
         if (res.directSources && res.directSources.length > 0) {
           const directSrc = res.directSources[0].url;
+          setDownloadStreamUrl(directSrc);
+          setDownloadRawUrl(directSrc);
           triggerBrowserDownload(directSrc, filename);
           return;
         }
-
-        // 3. First resolved clean server stream
-        if (res.fallbackEmbeds && res.fallbackEmbeds.length > 0) {
-          const firstEmbed = res.fallbackEmbeds[0].url;
-          triggerBrowserDownload(firstEmbed, filename);
-          return;
-        }
       } catch {
-        // Fallback
+        // Fallback to Download Hub modal
       }
 
-      // External direct stream tab fallback
-      const streamTarget = malId || aniId;
-      window.open(
-        `https://vidlink.pro/anime/${streamTarget}/${ep}/${audio}`,
-        "_blank",
-        "noopener,noreferrer"
-      );
+      setShowDownloadModal(true);
       return;
     }
 
-    // Movies & TV Shows: Open VidLink directly where playback and direct media streams are ready
-    if (initialData.mediaType === "movie") {
-      const vidlinkMovieUrl = `https://vidlink.pro/movie/${tmdbId}`;
-      window.open(vidlinkMovieUrl, "_blank", "noopener,noreferrer");
-    } else {
-      const vidlinkTvUrl = `https://vidlink.pro/tv/${tmdbId}/${currentSeason}/${ep}`;
-      window.open(vidlinkTvUrl, "_blank", "noopener,noreferrer");
+    // Movies & TV Shows: Attempt ad-free direct stream extraction via Phase 1 Resolver
+    try {
+      const res = await fetch(
+        `/api/stream/resolve?mediaType=${initialData.mediaType}&id=${tmdbId}&season=${currentSeason}&episode=${ep}&lang=${selectedLang}`
+      );
+      const data = await res.json();
+      if (data.success && data.streamUrl) {
+        setDownloadStreamUrl(data.streamUrl);
+        setDownloadRawUrl(data.rawUrl || data.streamUrl);
+        triggerBrowserDownload(data.streamUrl, filename);
+        return;
+      }
+      if (data.rawUrl || data.streamUrl) {
+        setDownloadStreamUrl(data.streamUrl);
+        setDownloadRawUrl(data.rawUrl || data.streamUrl);
+      }
+    } catch {
+      // Fallback
     }
+
+    // Clean in-app Download Hub modal (No external redirects to ad sites!)
+    setShowDownloadModal(true);
   }, [
     initialData.mediaType,
     initialData.malId,
@@ -163,6 +173,8 @@ export default function WatchClientView({
     initialData.title,
     currentEpisode,
     currentSeason,
+    audioMode,
+    selectedLang,
   ]);
 
   return (
@@ -215,6 +227,7 @@ export default function WatchClientView({
             anilistId={initialData.anilistId}
             malId={initialData.malId}
             audioMode={audioMode}
+            selectedLang={selectedLang}
             title={initialData.title}
             posterPath={initialData.posterPath}
             backdropPath={initialData.backdropPath}
@@ -224,13 +237,14 @@ export default function WatchClientView({
             autoPlay={autoPlay}
           />
 
-          {/* Sub / Dub Audio Toggle Bar for Anime */}
-          {initialData.mediaType === "anime" && (
-            <div className="max-w-5xl 2xl:max-w-6xl 3xl:max-w-7xl 4xl:max-w-[2000px] 5xl:max-w-[2600px] mx-auto flex items-center justify-between px-3 xs:px-4 py-2.5 xs:py-3 rounded-xl xs:rounded-2xl bg-[#0e131f]/90 border border-white/[0.08] backdrop-blur-xl shadow-lg">
-              <div className="flex items-center gap-1.5 xs:gap-2 text-[11px] xs:text-xs 3xl:text-sm font-semibold text-gray-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>Audio Track:</span>
-              </div>
+          {/* Universal Multi-Audio Selector Bar (MovieBox Architecture) */}
+          <div className="max-w-5xl 2xl:max-w-6xl 3xl:max-w-7xl 4xl:max-w-[2000px] 5xl:max-w-[2600px] mx-auto flex flex-wrap items-center justify-between gap-2 px-3 xs:px-4 py-2.5 xs:py-3 rounded-xl xs:rounded-2xl bg-[#0e131f]/90 border border-white/[0.08] backdrop-blur-xl shadow-lg">
+            <div className="flex items-center gap-1.5 xs:gap-2 text-[11px] xs:text-xs 3xl:text-sm font-semibold text-gray-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Audio Language:</span>
+            </div>
+
+            {initialData.mediaType === "anime" ? (
               <div className="flex items-center gap-1 xs:gap-1.5 bg-black/60 p-0.5 xs:p-1 rounded-lg xs:rounded-xl border border-white/[0.06]">
                 <button
                   onClick={() => setAudioMode("sub")}
@@ -255,8 +269,34 @@ export default function WatchClientView({
                   English (DUB)
                 </button>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-wrap items-center gap-1 xs:gap-1.5 bg-black/60 p-0.5 xs:p-1 rounded-lg xs:rounded-xl border border-white/[0.06]">
+                {[
+                  { code: "en", label: "Original (English)" },
+                  { code: "hi", label: "Hindi Dub" },
+                  { code: "es", label: "Spanish Dub" },
+                  { code: "fr", label: "French Dub" },
+                  { code: "ta", label: "Tamil Dub" },
+                ].map((item) => {
+                  const isSelected = selectedLang === item.code;
+                  return (
+                    <button
+                      key={item.code}
+                      onClick={() => setSelectedLang(item.code)}
+                      aria-pressed={isSelected}
+                      className={`px-2.5 xs:px-3 py-1 rounded-md xs:rounded-lg text-[10px] xs:text-xs 3xl:text-sm font-bold transition-all ${
+                        isSelected
+                          ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 font-extrabold"
+                          : "text-gray-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Media Metadata & Action Header */}
@@ -508,6 +548,30 @@ export default function WatchClientView({
           </div>
         </div>
       )}
+
+      {/* Download Hub Modal (Zero Ad Redirects) */}
+      <DownloadModal
+        isOpen={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+        title={initialData.title}
+        posterPath={initialData.posterPath}
+        backdropPath={initialData.backdropPath}
+        mediaType={initialData.mediaType}
+        season={currentSeason}
+        episode={currentEpisode}
+        episodeTitle={currentEpTitle}
+        selectedLang={selectedLang}
+        directStreamUrl={downloadStreamUrl}
+        rawStreamUrl={downloadRawUrl}
+        onTriggerDirectDownload={() => {
+          if (downloadStreamUrl) {
+            const filename = `${initialData.title.replace(/[^\w\s-]/g, "")}_${
+              initialData.mediaType === "movie" ? "Movie" : `S${currentSeason}E${currentEpisode}`
+            }_1080p.mp4`;
+            triggerBrowserDownload(downloadStreamUrl, filename);
+          }
+        }}
+      />
     </div>
   );
 }

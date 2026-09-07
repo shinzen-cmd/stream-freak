@@ -18,7 +18,9 @@ import { MediaType, PlayerServer } from "@/types/media";
 import { getPlayerServers } from "@/lib/playerSources";
 import { getAnimeStream, resolveAnimeServerEmbed, AnimeStreamResult } from "@/lib/getAnimeStream";
 import { useWatchlist } from "@/context/WatchlistContext";
+import { fetchDirectStream, StreamAudioTrack } from "@/lib/streamResolver";
 import HlsVideoPlayer from "./HlsVideoPlayer";
+
 
 interface VideoPlayerProps {
   mediaType: MediaType;
@@ -27,6 +29,7 @@ interface VideoPlayerProps {
   anilistId?: number;
   malId?: number | null;
   audioMode?: "sub" | "dub";
+  selectedLang?: string;
   title: string;
   posterPath: string | null;
   backdropPath: string | null;
@@ -44,6 +47,7 @@ export default function VideoPlayer({
   anilistId,
   malId,
   audioMode = "sub",
+  selectedLang = "en",
   title,
   posterPath,
   backdropPath,
@@ -60,11 +64,17 @@ export default function VideoPlayer({
   const [playerState, setPlayerState] = useState<"idle" | "loading" | "ready" | "error">(
     autoPlay ? "loading" : "idle"
   );
+  const [savedPlaybackTime, setSavedPlaybackTime] = useState<number>(0);
+
   const [animeStreamData, setAnimeStreamData] = useState<AnimeStreamResult | null>(null);
   const [resolvedUrlOverride, setResolvedUrlOverride] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(true);
   const [failedServers, setFailedServers] = useState<Set<number>>(new Set());
   const [useNativePlayer, setUseNativePlayer] = useState(false);
+  const [extractedStreamUrl, setExtractedStreamUrl] = useState<string | null>(null);
+  const [extractedSubtitles, setExtractedSubtitles] = useState<Array<{ url: string; lang: string }>>([]);
+  const [extractedAudioTracks, setExtractedAudioTracks] = useState<StreamAudioTrack[]>([]);
+  const [isResolvingStream, setIsResolvingStream] = useState(false);
 
   const isFirstMountRef = useRef(true);
   const lastRecordedRef = useRef<string>("");
@@ -74,7 +84,7 @@ export default function VideoPlayer({
     if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
   };
 
-  // Build base server list from playerSources
+  // Build base server list from playerSources with active multi-language routing
   const baseServers: PlayerServer[] = useMemo(
     () =>
       getPlayerServers({
@@ -84,11 +94,12 @@ export default function VideoPlayer({
         anilistId,
         malId,
         audioMode,
+        lang: selectedLang,
         season,
         episode,
         title,
       }),
-    [mediaType, id, tmdbId, anilistId, malId, audioMode, season, episode, title]
+    [mediaType, id, tmdbId, anilistId, malId, audioMode, selectedLang, season, episode, title]
   );
 
   // For anime: resolve multi-worker stream data
@@ -126,7 +137,7 @@ export default function VideoPlayer({
     if (mediaType !== "anime") setIsReady(true);
   }, [mediaType]);
 
-  // Reset on episode/server change
+  // Reset on episode/server/language change
   useEffect(() => {
     clearTimer();
     setActiveServerIndex(0);
@@ -134,6 +145,8 @@ export default function VideoPlayer({
     setFailedServers(new Set());
     setIframeKey((k) => k + 1);
     setUseNativePlayer(false);
+    setExtractedStreamUrl(null);
+    setExtractedAudioTracks([]);
 
     const shouldPlay = isFirstMountRef.current ? autoPlay : true;
     isFirstMountRef.current = false;
@@ -145,7 +158,7 @@ export default function VideoPlayer({
       setPlayerState("idle");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaType, id, season, episode, audioMode]);
+  }, [mediaType, id, season, episode, audioMode, selectedLang]);
 
   useEffect(() => () => clearTimer(), []);
 
@@ -176,8 +189,65 @@ export default function VideoPlayer({
     if (mediaType === "anime" && animeStreamData?.directSources?.length) {
       return animeStreamData.directSources[0];
     }
+    if (extractedStreamUrl) {
+      return {
+        url: extractedStreamUrl,
+        quality: "Auto",
+        isM3U8: extractedStreamUrl.includes(".m3u8"),
+        type: (extractedStreamUrl.includes(".mp4") ? "mp4" : "hls") as "hls" | "mp4",
+      };
+    }
     return null;
-  }, [mediaType, animeStreamData]);
+  }, [mediaType, animeStreamData, extractedStreamUrl]);
+
+  const effectiveSubtitles = useMemo(() => {
+    if (animeStreamData?.subtitles?.length) {
+      return animeStreamData.subtitles;
+    }
+    return extractedSubtitles;
+  }, [animeStreamData?.subtitles, extractedSubtitles]);
+
+  // Attempt ad-free direct stream extraction via Phase 1 Unified Stream Resolver
+  const resolveStream = useCallback(async () => {
+    setIsResolvingStream(true);
+    try {
+      const data = await fetchDirectStream({
+        mediaType,
+        id,
+        tmdbId,
+        anilistId,
+        malId,
+        season,
+        episode,
+        audioMode,
+        lang: selectedLang,
+        title,
+      });
+
+      if (data.success && data.streamUrl) {
+        setExtractedStreamUrl(data.streamUrl);
+        setExtractedSubtitles(data.subtitles || []);
+        setExtractedAudioTracks(data.audioTracks || []);
+        setUseNativePlayer(true);
+        setIsResolvingStream(false);
+        return true;
+      }
+    } catch {
+      // Fallback to sandboxed iframe
+    }
+    setExtractedStreamUrl(null);
+    setUseNativePlayer(false);
+    setIsResolvingStream(false);
+    return false;
+  }, [mediaType, id, tmdbId, anilistId, malId, season, episode, audioMode, selectedLang, title]);
+
+  // When selectedLang or audioMode changes on an active player, re-resolve stream with timestamp preserved
+  useEffect(() => {
+    if (playerState !== "idle" && (selectedLang || audioMode)) {
+      resolveStream();
+    }
+  }, [selectedLang, audioMode, resolveStream]);
+
 
   // Continue watching record
   useEffect(() => {
@@ -199,15 +269,35 @@ export default function VideoPlayer({
     });
   }, [id, title, mediaType, posterPath, backdropPath, season, episode, episodeTitle, updateContinueWatching]);
 
+  // Auto-resolve stream when player is active
+  useEffect(() => {
+    if (playerState !== "idle" && !directStreamSource && !isResolvingStream) {
+      resolveStream().then((success) => {
+        if (success) setUseNativePlayer(true);
+      });
+    }
+  }, [playerState, directStreamSource, isResolvingStream, resolveStream]);
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  const handlePlay = useCallback(() => {
-    if (!activeServer) return;
+  const handlePlay = useCallback(async () => {
     clearTimer();
-    setUseNativePlayer(false);
     setPlayerState("loading");
-    loadTimerRef.current = setTimeout(() => setPlayerState("ready"), 800);
-  }, [activeServer]);
+
+    if (directStreamSource?.url) {
+      setUseNativePlayer(true);
+      setPlayerState("ready");
+      return;
+    }
+
+    const success = await resolveStream();
+    if (success) {
+      setUseNativePlayer(true);
+    } else {
+      setUseNativePlayer(false);
+    }
+    setPlayerState("ready");
+  }, [directStreamSource, resolveStream]);
 
   const switchServer = useCallback(
     async (index: number) => {
@@ -215,13 +305,15 @@ export default function VideoPlayer({
       setUseNativePlayer(false);
       setActiveServerIndex(index);
       setPlayerState("loading");
-      loadTimerRef.current = setTimeout(() => setPlayerState("ready"), 1000);
 
       const srv = allServers[index];
+      let targetUrl = srv?.url || "";
+
       if (srv) {
         if (srv.url && srv.url.startsWith("http")) {
           setResolvedUrlOverride(srv.url);
           setIframeKey((k) => k + 1);
+          targetUrl = srv.url;
         } else if (mediaType === "anime") {
           try {
             const resolved = await resolveAnimeServerEmbed(
@@ -232,11 +324,14 @@ export default function VideoPlayer({
             );
             setResolvedUrlOverride(resolved);
             setIframeKey((k) => k + 1);
+            targetUrl = resolved;
           } catch {
             setIframeKey((k) => k + 1);
           }
         }
       }
+
+      loadTimerRef.current = setTimeout(() => setPlayerState("ready"), 600);
     },
     [allServers, mediaType, anilistId, id, episode, audioMode]
   );
@@ -298,6 +393,50 @@ export default function VideoPlayer({
     }
   }, []);
 
+  // Hardened popup & ad suppression from third-party embed mirrors without triggering anti-sandbox blockers
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const originalOpen = window.open;
+
+    // Neutralize unauthorized popup tabs
+    window.open = function (url?: string | URL, target?: string, features?: string) {
+      const urlStr = url ? String(url) : "";
+      if (
+        urlStr.startsWith("blob:") ||
+        urlStr.includes("/api/") ||
+        urlStr.includes("streamfreak") ||
+        urlStr.includes("aniflix")
+      ) {
+        return originalOpen.call(window, url, target, features);
+      }
+      // Silently discard third-party ad popups
+      return null;
+    };
+
+    // Block rogue programmatic clicks on injected ad links
+    const handleDocClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest("a");
+      if (target && target.href) {
+        const href = target.href;
+        const isInternal =
+          href.startsWith(window.location.origin) ||
+          href.startsWith("blob:") ||
+          href.includes("/api/");
+        if (!isInternal && target.target === "_blank") {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+
+    window.addEventListener("click", handleDocClick, true);
+
+    return () => {
+      window.open = originalOpen;
+      window.removeEventListener("click", handleDocClick, true);
+    };
+  }, []);
+
   const poster = backdropPath || posterPath;
   const displayTitle = mediaType === "movie" ? title : `${title} — Ep ${episode}`;
 
@@ -305,14 +444,36 @@ export default function VideoPlayer({
   const showNativeHls =
     playerState !== "idle" &&
     useNativePlayer &&
-    mediaType === "anime" &&
     directStreamSource !== null &&
     Boolean(directStreamSource?.url);
 
   return (
     <div className="w-full flex flex-col gap-2.5">
-      {/* ── SERVER TABS ──────────────────────────────────────────────── */}
+      {/* ── SERVER TABS & STREAM MODE ───────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-wrap px-0.5">
+        {/* Stream Mode Badge & Mirror Switcher */}
+        <div className="flex items-center gap-1.5 mr-1">
+          {useNativePlayer ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              ⚡ Native Player (Ad-Free)
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-medium">
+              Embed Mirror
+            </span>
+          )}
+          {extractedStreamUrl && (
+            <button
+              onClick={() => setUseNativePlayer((p) => !p)}
+              className="text-[11px] text-white/40 hover:text-white underline underline-offset-2 ml-0.5 transition"
+              title={useNativePlayer ? "Switch to Embed Mirror" : "Switch to Direct Ad-Free Player"}
+            >
+              {useNativePlayer ? "Mirror" : "Direct"}
+            </button>
+          )}
+        </div>
+
         <span className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mr-0.5 hidden xs:inline">
           Server
         </span>
@@ -375,10 +536,13 @@ export default function VideoPlayer({
             key={`native-${episode}-${directStreamSource.url}`}
             src={directStreamSource.url}
             poster={poster}
+            initialTime={savedPlaybackTime}
             title={displayTitle}
-            subtitles={animeStreamData?.subtitles || []}
+            subtitles={effectiveSubtitles}
+            audioTracks={extractedAudioTracks}
             introSkip={animeStreamData?.intro}
             outroSkip={animeStreamData?.outro}
+            onTimeUpdate={(t) => setSavedPlaybackTime(t)}
             onError={handleNativeError}
             onFullscreenChange={handleFullscreenChange}
           />
@@ -480,17 +644,18 @@ export default function VideoPlayer({
               </div>
             )}
 
-            {/* IFRAME: persistent mount without destructive false-positive unmounting */}
+            {/* IFRAME: Clean fallback mirror without restrictive sandbox that triggers anti-embed blockers */}
             {isReady && activeServer && (
               <iframe
-                key={`player-frame-${iframeKey}-${activeServerIndex}-${episode}`}
+                key={`player-frame-${iframeKey}-${activeServerIndex}-${episode}-${selectedLang}`}
                 src={activeEmbedUrl}
                 title={displayTitle}
                 className="absolute inset-0 w-full h-full border-0 z-10"
                 allowFullScreen
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; clipboard-write"
+                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
                 referrerPolicy="no-referrer-when-downgrade"
                 onLoad={handleIframeLoad}
+                onError={handleIframeError}
               />
             )}
           </>
@@ -501,11 +666,11 @@ export default function VideoPlayer({
       <div className="flex items-center justify-between px-0.5">
         <p className="text-[11px] text-white/20 font-medium">
           {showNativeHls
-            ? `▶ Direct HLS Stream Active`
+            ? `▶ Direct Ad-Free Stream Active (${activeServer?.name || "Server"})`
+            : isResolvingStream || playerState === "loading"
+            ? `◌ Connecting to ${activeServer?.name}…`
             : playerState === "ready"
             ? `▶ ${activeServer?.name}`
-            : playerState === "loading"
-            ? `◌ Connecting to ${activeServer?.name}…`
             : playerState === "error"
             ? `✗ ${activeServer?.name} failed`
             : isReady
