@@ -196,7 +196,66 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
 
   const fallbackEmbeds = getAnimeEmbedMirrors(params);
 
-  // Fast path: skip worker queries, go straight to embed mirrors
+  async function resolveMegaVid(
+    malId: string | number,
+    episode: number,
+    audioMode: "sub" | "dub" = "sub"
+  ): Promise<string | null> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const res = await fetch(`https://megavid.buzz/mal/${malId}/${episode}/${audioMode}/source`, {
+        headers: {
+          Referer: "https://zorotv.ba/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (
+        data &&
+        data.status === "ok" &&
+        typeof data.source === "string" &&
+        data.source.includes(".m3u8")
+      ) {
+        return data.source;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (isValidId(params.malId)) {
+    const directUrl = await resolveMegaVid(params.malId!, ep, audio);
+    if (directUrl) {
+      return {
+        success: true,
+        provider: "MegaVid Direct",
+        tier: 1,
+        directSources: [
+          {
+            url: directUrl,
+            quality: "1080p",
+            isM3U8: true,
+            type: "hls",
+          },
+        ],
+        subtitles: [],
+        embedUrl: fallbackEmbeds[0]?.url ?? "",
+        fallbackEmbeds,
+      };
+    }
+  }
+
+  // Fast path fallback: skip worker queries, go straight to embed mirrors
   const quickResult: AnimeStreamResult = {
     success: true,
     provider: "Embed Mirror Gateway",

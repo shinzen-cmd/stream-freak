@@ -216,11 +216,13 @@ export async function GET(req: NextRequest) {
       if (val) forwardHeaders.set(key, val);
     }
 
-    // Fallback content-type for standard TS chunks
-    if (!forwardHeaders.has("content-type")) {
-      if (targetUrl.includes(".ts")) forwardHeaders.set("content-type", "video/MP2T");
-      else if (targetUrl.includes(".m4s") || targetUrl.includes(".mp4")) forwardHeaders.set("content-type", "video/mp4");
-      else forwardHeaders.set("content-type", "application/octet-stream");
+    // Ensure correct MIME type for standard media chunks
+    if (targetUrl.toLowerCase().includes(".ts")) {
+      forwardHeaders.set("content-type", "video/mp2t");
+    } else if (targetUrl.toLowerCase().includes(".m4s") || targetUrl.toLowerCase().includes(".mp4")) {
+      forwardHeaders.set("content-type", "video/mp4");
+    } else if (!forwardHeaders.has("content-type")) {
+      forwardHeaders.set("content-type", "application/octet-stream");
     }
 
     // Video segments are immutable: cache on edge for 1 year

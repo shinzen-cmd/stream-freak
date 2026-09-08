@@ -122,6 +122,9 @@ export default function VideoPlayer({
         if (!mounted) return;
         setAnimeStreamData(res);
         setIsReady(true);
+        if (res && res.directSources && res.directSources.length > 0) {
+          setUseNativePlayer(true);
+        }
       })
       .catch(() => {
         if (!mounted) return;
@@ -186,15 +189,24 @@ export default function VideoPlayer({
 
   // Direct media streams (HLS .m3u8 or MP4)
   const directStreamSource = useMemo(() => {
-    if (mediaType === "anime" && animeStreamData?.directSources?.length) {
-      return animeStreamData.directSources[0];
-    }
+    // 1. Prefer verified extractedStreamUrl (which has referers & proxied M3U8 configured)
     if (extractedStreamUrl) {
       return {
         url: extractedStreamUrl,
         quality: "Auto",
         isM3U8: extractedStreamUrl.includes(".m3u8"),
         type: (extractedStreamUrl.includes(".mp4") ? "mp4" : "hls") as "hls" | "mp4",
+      };
+    }
+    // 2. Direct sources from anime resolver (proxied through stream proxy to bypass CORS/hotlink protection)
+    if (mediaType === "anime" && animeStreamData?.directSources?.length) {
+      const raw = animeStreamData.directSources[0];
+      const proxiedUrl = raw.url.startsWith("/api/proxy/stream")
+        ? raw.url
+        : `/api/proxy/stream?url=${encodeURIComponent(raw.url)}&referer=${encodeURIComponent(raw.url)}`;
+      return {
+        ...raw,
+        url: proxiedUrl,
       };
     }
     return null;
