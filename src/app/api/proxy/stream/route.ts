@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 // Default spoofed headers to bypass anti-scraping and CDN protection
 const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 /**
  * Handle CORS preflight requests
@@ -25,17 +25,27 @@ export async function OPTIONS() {
 /**
  * Helper to resolve and rewrite an internal HLS URI through this proxy endpoint
  */
-function proxyUrl(rawUri: string, baseUrl: string, referer: string): string {
+function proxyUrl(rawUri: string, baseUrl: string, referer: string, sessionToken?: string): string {
   try {
     const trimmed = rawUri.trim();
     if (!trimmed) return rawUri;
+    if (trimmed.startsWith("/api/proxy/stream")) {
+      if (sessionToken && !trimmed.includes("sessionToken=")) {
+        return `${trimmed}&sessionToken=${encodeURIComponent(sessionToken)}`;
+      }
+      return trimmed;
+    }
 
     // Resolve relative paths against the manifest base URL
     const absolute = trimmed.startsWith("http://") || trimmed.startsWith("https://")
       ? trimmed
       : new URL(trimmed, baseUrl).href;
 
-    return `/api/proxy/stream?url=${encodeURIComponent(absolute)}&referer=${encodeURIComponent(referer)}`;
+    let proxied = `/api/proxy/stream?url=${encodeURIComponent(absolute)}&referer=${encodeURIComponent(referer)}`;
+    if (sessionToken) {
+      proxied += `&sessionToken=${encodeURIComponent(sessionToken)}`;
+    }
+    return proxied;
   } catch {
     return rawUri;
   }
@@ -45,7 +55,12 @@ function proxyUrl(rawUri: string, baseUrl: string, referer: string): string {
  * Parses and rewrites M3U8 playlists (both master and media playlists)
  * including media segments, child manifests, encryption keys, and alternate audio/sub tracks.
  */
-function rewriteM3u8Manifest(manifestText: string, targetUrl: string, referer: string): string {
+function rewriteM3u8Manifest(
+  manifestText: string,
+  targetUrl: string,
+  referer: string,
+  sessionToken?: string
+): string {
   const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
 
   return manifestText
@@ -59,10 +74,10 @@ function rewriteM3u8Manifest(manifestText: string, targetUrl: string, referer: s
       // Handle HLS tag lines that contain embedded URI attributes (Keys, Init maps, Audio/Sub tracks)
       if (trimmed.startsWith("#")) {
         // Rewrite URI attributes in #EXT-X-KEY, #EXT-X-MAP, #EXT-X-MEDIA, etc.
-        // Format: URI="path/to/key.key" or URI="path/to/init.mp4"
-        if (trimmed.includes('URI="')) {
-          return trimmed.replace(/URI="([^"]+)"/g, (_, uriValue) => {
-            const proxied = proxyUrl(uriValue, baseUrl, referer);
+        // Format: URI="path/to/key.key" or URI='path/to/init.mp4'
+        if (trimmed.includes('URI="') || trimmed.includes("URI='")) {
+          return trimmed.replace(/URI=["']([^"']+)["']/g, (_, uriValue) => {
+            const proxied = proxyUrl(uriValue, baseUrl, referer, sessionToken);
             return `URI="${proxied}"`;
           });
         }
@@ -70,7 +85,7 @@ function rewriteM3u8Manifest(manifestText: string, targetUrl: string, referer: s
       }
 
       // Non-comment lines are direct video segment or child manifest URLs
-      return proxyUrl(trimmed, baseUrl, referer);
+      return proxyUrl(trimmed, baseUrl, referer, sessionToken);
     })
     .join("\n");
 }
@@ -111,20 +126,57 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Extract url, referer, sessionToken, and custom headers from query parameters
+  const sessionToken =
+    searchParams.get("sessionToken") ||
+    searchParams.get("token") ||
+    searchParams.get("t") ||
+    searchParams.get("sig") ||
+    "";
+
   // Derive target origin and referer
   const targetOrigin = parsedTarget.origin;
-  const referer = searchParams.get("referer") || `${targetOrigin}/`;
+  let referer = searchParams.get("referer") || `${targetOrigin}/`;
 
-  // Build upstream request headers
+  // Upstream CDN compatibility: megavid.buzz CDNs reject third-party referers on HLS manifests
+  if (parsedTarget.hostname.includes("megavid.buzz") && referer.includes("zorotv.ba")) {
+    referer = "https://megavid.buzz/";
+  }
+
+  let requestOrigin = targetOrigin;
+  try {
+    if (referer && (referer.startsWith("http://") || referer.startsWith("https://"))) {
+      requestOrigin = new URL(referer).origin;
+    }
+  } catch {}
+
+  // Pass the captured sessionToken in query parameters if not already in target URL
+  let upstreamFetchUrl = targetUrl;
+  if (sessionToken && !parsedTarget.searchParams.has("token") && !parsedTarget.searchParams.has("sessionToken")) {
+    try {
+      const urlObj = new URL(targetUrl);
+      urlObj.searchParams.set("token", sessionToken);
+      upstreamFetchUrl = urlObj.href;
+    } catch {}
+  }
+
+  // Build upstream request headers with spoofed session context
   const upstreamHeaders = new Headers();
   upstreamHeaders.set("User-Agent", searchParams.get("ua") || DEFAULT_USER_AGENT);
   upstreamHeaders.set("Referer", referer);
-  upstreamHeaders.set("Origin", targetOrigin);
+  upstreamHeaders.set("Origin", requestOrigin);
   upstreamHeaders.set("Accept", "*/*");
   upstreamHeaders.set("Accept-Language", "en-US,en;q=0.9");
   upstreamHeaders.set("Sec-Fetch-Dest", "empty");
   upstreamHeaders.set("Sec-Fetch-Mode", "cors");
   upstreamHeaders.set("Sec-Fetch-Site", "cross-site");
+
+  if (sessionToken) {
+    upstreamHeaders.set("X-Session-Token", sessionToken);
+    upstreamHeaders.set("Authorization", `Bearer ${sessionToken}`);
+    const clientCookie = searchParams.get("cookie") || `token=${sessionToken}; sessionToken=${sessionToken}`;
+    upstreamHeaders.set("Cookie", clientCookie);
+  }
 
   // Pass Range headers through for seeking and chunked playback support
   const clientRange = req.headers.get("range");
@@ -136,7 +188,7 @@ export async function GET(req: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
-    const upstreamRes = await fetch(targetUrl, {
+    const upstreamRes = await fetch(upstreamFetchUrl, {
       method: "GET",
       headers: upstreamHeaders,
       redirect: "follow",
@@ -179,11 +231,14 @@ export async function GET(req: NextRequest) {
           headers: {
             "Content-Type": contentType || "text/plain",
             "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
           },
         });
       }
 
-      const rewrittenManifest = rewriteM3u8Manifest(originalManifest, targetUrl, referer);
+      const rewrittenManifest = rewriteM3u8Manifest(originalManifest, upstreamFetchUrl, referer, sessionToken);
 
       return new NextResponse(rewrittenManifest, {
         status: 200,
@@ -192,7 +247,7 @@ export async function GET(req: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
           "Access-Control-Expose-Headers": "*",
-          "Cache-Control": "public, max-age=10, s-maxage=10, stale-while-revalidate=60",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         },
       });
     }
@@ -225,8 +280,10 @@ export async function GET(req: NextRequest) {
       forwardHeaders.set("content-type", "application/octet-stream");
     }
 
-    // Video segments are immutable: cache on edge for 1 year
-    forwardHeaders.set("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
+    // Cache segments for 1 hour to prevent fragment timeouts and enable instant seeking
+    forwardHeaders.set("Cache-Control", "public, max-age=3600, immutable");
+    forwardHeaders.delete("Pragma");
+    forwardHeaders.delete("Expires");
 
     return new NextResponse(upstreamRes.body as any, {
       status: upstreamRes.status,

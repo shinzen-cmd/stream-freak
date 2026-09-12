@@ -138,15 +138,30 @@ export default function HlsVideoPlayer({
 
     if (src.includes(".m3u8") && Hls.isSupported()) {
       const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 90,
+        // Fix for (canceled) XHR requests caused by timestamp gaps
+        maxBufferHole: 0.5,                  // Jump small gaps in video buffers automatically
+        highBufferWatchdogPeriod: 2,         // Detect stalls faster and recover
+        nudgeMaxRetry: 5,                    // Retry seeking past corrupted frames
+        nudgeOffset: 0.1,
+
+        // Disable web worker for demuxing to avoid MSE buffer append crashes
+        enableWorker: false,                 // Runs demuxer directly on main thread to sync PTS/DTS
+
+        // Timeout and retry settings
+        fragLoadingTimeOut: 30000,           // 30 seconds
+        manifestLoadingTimeOut: 30000,
+        levelLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+
+        // Buffer limits
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
       });
       hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
 
-      let networkErrors = 0;
       // Generous 12s timeout for cold edge proxy caching
       const timeoutId = setTimeout(() => {
         setIsLoading(false);
@@ -195,26 +210,24 @@ export default function HlsVideoPlayer({
         setActiveAudioTrackIndex(data.id);
       });
 
+      // Fatal error recovery & buffer hardening
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
-          clearTimeout(timeoutId);
-          setIsLoading(false);
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              networkErrors++;
-              if (networkErrors <= 2) {
-                hls.startLoad();
-              } else {
-                hls.destroy();
-                setHasError(true);
-                setErrorMessage("Stream offline or network block");
-                onErrorRef.current?.("HLS network error");
-              }
+              // Seamlessly retry segment chunk downloads without unmounting the video canvas
+              console.warn("[HlsVideoPlayer] Fatal network error, recovering via hls.startLoad():", data.details);
+              hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              // Automatically recover playback position upon media buffer stalls
+              console.warn("[HlsVideoPlayer] Fatal media error, recovering via hls.recoverMediaError():", data.details);
               hls.recoverMediaError();
               break;
             default:
+              console.error("[HlsVideoPlayer] Fatal unrecoverable playback error:", data.details);
+              clearTimeout(timeoutId);
+              setIsLoading(false);
               hls.destroy();
               setHasError(true);
               setErrorMessage("Fatal media playback error");

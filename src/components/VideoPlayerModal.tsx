@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Play,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { MediaType, PlayerServer } from "@/types/media";
 import { getPlayerServers } from "@/lib/playerSources";
@@ -20,6 +21,18 @@ import { getAnimeStream, resolveAnimeServerEmbed, AnimeStreamResult } from "@/li
 import { useWatchlist } from "@/context/WatchlistContext";
 import { fetchDirectStream, StreamAudioTrack } from "@/lib/streamResolver";
 import HlsVideoPlayer from "./HlsVideoPlayer";
+import OverlayAdBlocker from "./OverlayAdBlocker";
+import { attachStreamInterceptor } from "@/lib/streamInterceptor";
+
+const SESSION_LOCKED_HOSTS = [
+  "megavid.buzz",
+  "cp.megavid.buzz",
+  "zorotv.ba",
+  "api-webs.com",
+  "cdn.api-webs.com",
+  "vidlink.pro",
+  "vidsrc.cc",
+];
 
 
 interface VideoPlayerProps {
@@ -71,6 +84,7 @@ export default function VideoPlayer({
   const [isReady, setIsReady] = useState(true);
   const [failedServers, setFailedServers] = useState<Set<number>>(new Set());
   const [useNativePlayer, setUseNativePlayer] = useState(false);
+  const [useNativeEmbed, setUseNativeEmbed] = useState(false);
   const [extractedStreamUrl, setExtractedStreamUrl] = useState<string | null>(null);
   const [extractedSubtitles, setExtractedSubtitles] = useState<Array<{ url: string; lang: string }>>([]);
   const [extractedAudioTracks, setExtractedAudioTracks] = useState<StreamAudioTrack[]>([]);
@@ -79,10 +93,28 @@ export default function VideoPlayer({
   const isFirstMountRef = useRef(true);
   const lastRecordedRef = useRef<string>("");
   const loadTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const attemptedResolveRef = useRef<string>("");
 
   const clearTimer = () => {
     if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
   };
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin.includes("vidlink.pro")) {
+        if (event.data?.type === 'MEDIA_DATA') {
+          console.log('MEDIA_DATA:', JSON.stringify(event.data.data));
+          // @ts-ignore
+          window._vidlinkData = event.data.data;
+        }
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => {
+      window.removeEventListener("message", handler);
+    };
+  }, []);
 
   // Build base server list from playerSources with active multi-language routing
   const baseServers: PlayerServer[] = useMemo(
@@ -120,7 +152,16 @@ export default function VideoPlayer({
     })
       .then((res) => {
         if (!mounted) return;
-        setAnimeStreamData(res);
+        setAnimeStreamData((prev) => {
+          if (prev?.directSources?.length && (!res || !res.directSources || res.directSources.length === 0)) {
+            return {
+              ...res,
+              directSources: prev.directSources,
+              provider: prev.provider,
+            };
+          }
+          return res;
+        });
         setIsReady(true);
         if (res && res.directSources && res.directSources.length > 0) {
           setUseNativePlayer(true);
@@ -128,7 +169,6 @@ export default function VideoPlayer({
       })
       .catch(() => {
         if (!mounted) return;
-        setAnimeStreamData(null);
         setIsReady(true);
       });
     return () => {
@@ -148,6 +188,7 @@ export default function VideoPlayer({
     setFailedServers(new Set());
     setIframeKey((k) => k + 1);
     setUseNativePlayer(false);
+    setUseNativeEmbed(false);
     setExtractedStreamUrl(null);
     setExtractedAudioTracks([]);
 
@@ -187,30 +228,46 @@ export default function VideoPlayer({
       ? animeStreamData.embedUrl
       : activeServer?.url || "");
 
+  const currentServerUrl = activeEmbedUrl;
+
   // Direct media streams (HLS .m3u8 or MP4)
   const directStreamSource = useMemo(() => {
+    // When useNativeEmbed is true, direct stream is disabled
+    if (useNativeEmbed) return null;
+
     // 1. Prefer verified extractedStreamUrl (which has referers & proxied M3U8 configured)
     if (extractedStreamUrl) {
-      return {
-        url: extractedStreamUrl,
-        quality: "Auto",
-        isM3U8: extractedStreamUrl.includes(".m3u8"),
-        type: (extractedStreamUrl.includes(".mp4") ? "mp4" : "hls") as "hls" | "mp4",
-      };
+      const isProxied = extractedStreamUrl.startsWith("/api/proxy/stream");
+      const isLocked =
+        !isProxied &&
+        SESSION_LOCKED_HOSTS.some((h) => extractedStreamUrl.toLowerCase().includes(h));
+      if (!isLocked) {
+        return {
+          url: extractedStreamUrl,
+          quality: "Auto",
+          isM3U8: extractedStreamUrl.includes(".m3u8"),
+          type: (extractedStreamUrl.includes(".mp4") ? "mp4" : "hls") as "hls" | "mp4",
+        };
+      }
     }
     // 2. Direct sources from anime resolver (proxied through stream proxy to bypass CORS/hotlink protection)
     if (mediaType === "anime" && animeStreamData?.directSources?.length) {
       const raw = animeStreamData.directSources[0];
-      const proxiedUrl = raw.url.startsWith("/api/proxy/stream")
-        ? raw.url
-        : `/api/proxy/stream?url=${encodeURIComponent(raw.url)}&referer=${encodeURIComponent(raw.url)}`;
-      return {
-        ...raw,
-        url: proxiedUrl,
-      };
+      const isLocked = SESSION_LOCKED_HOSTS.some((h) =>
+        raw.url.toLowerCase().includes(h)
+      );
+      if (!isLocked) {
+        const proxiedUrl = raw.url.startsWith("/api/proxy/stream")
+          ? raw.url
+          : `/api/proxy/stream?url=${encodeURIComponent(raw.url)}&referer=${encodeURIComponent("https://zorotv.ba/")}`;
+        return {
+          ...raw,
+          url: proxiedUrl,
+        };
+      }
     }
     return null;
-  }, [mediaType, animeStreamData, extractedStreamUrl]);
+  }, [mediaType, animeStreamData, extractedStreamUrl, useNativeEmbed]);
 
   const effectiveSubtitles = useMemo(() => {
     if (animeStreamData?.subtitles?.length) {
@@ -236,19 +293,37 @@ export default function VideoPlayer({
         title,
       });
 
-      if (data.success && data.streamUrl) {
-        setExtractedStreamUrl(data.streamUrl);
-        setExtractedSubtitles(data.subtitles || []);
-        setExtractedAudioTracks(data.audioTracks || []);
-        setUseNativePlayer(true);
+      if (data.success && data.streamUrl && !data.useNativeEmbed) {
+        const isLocked = SESSION_LOCKED_HOSTS.some((h) =>
+          data.streamUrl?.toLowerCase().includes(h)
+        );
+        if (!isLocked) {
+          setExtractedStreamUrl(data.streamUrl);
+          setExtractedSubtitles(data.subtitles || []);
+          setExtractedAudioTracks(data.audioTracks || []);
+          setUseNativePlayer(true);
+          setUseNativeEmbed(false);
+          setIsResolvingStream(false);
+          return true;
+        }
+      }
+
+      if (data.useNativeEmbed || data.embedUrl || data.fallbackEmbedUrl) {
+        setUseNativeEmbed(true);
+        setUseNativePlayer(false);
+        setExtractedStreamUrl(null);
+        if (data.embedUrl || data.fallbackEmbedUrl) {
+          setResolvedUrlOverride(data.embedUrl || data.fallbackEmbedUrl || null);
+        }
         setIsResolvingStream(false);
         return true;
       }
     } catch {
-      // Fallback to sandboxed iframe
+      // Fallback to overlay ad-blocker embed
     }
     setExtractedStreamUrl(null);
     setUseNativePlayer(false);
+    setUseNativeEmbed(true);
     setIsResolvingStream(false);
     return false;
   }, [mediaType, id, tmdbId, anilistId, malId, season, episode, audioMode, selectedLang, title]);
@@ -256,10 +331,10 @@ export default function VideoPlayer({
   // When selectedLang or audioMode changes on an active player, re-resolve stream with timestamp preserved
   useEffect(() => {
     if (playerState !== "idle" && (selectedLang || audioMode)) {
+      attemptedResolveRef.current = `${id}-${season}-${episode}-${audioMode}-${selectedLang}`;
       resolveStream();
     }
-  }, [selectedLang, audioMode, resolveStream]);
-
+  }, [selectedLang, audioMode, resolveStream, id, season, episode]);
 
   // Continue watching record
   useEffect(() => {
@@ -281,14 +356,39 @@ export default function VideoPlayer({
     });
   }, [id, title, mediaType, posterPath, backdropPath, season, episode, episodeTitle, updateContinueWatching]);
 
-  // Auto-resolve stream when player is active
+  // Auto-resolve stream when player is active (guarded against duplicate/infinite retry loops)
   useEffect(() => {
-    if (playerState !== "idle" && !directStreamSource && !isResolvingStream) {
+    const currentKey = `${id}-${season}-${episode}-${audioMode}-${selectedLang}`;
+    if (
+      playerState !== "idle" &&
+      !directStreamSource &&
+      !isResolvingStream &&
+      attemptedResolveRef.current !== currentKey
+    ) {
+      attemptedResolveRef.current = currentKey;
       resolveStream().then((success) => {
         if (success) setUseNativePlayer(true);
       });
     }
-  }, [playerState, directStreamSource, isResolvingStream, resolveStream]);
+  }, [playerState, directStreamSource, isResolvingStream, resolveStream, id, season, episode, audioMode, selectedLang]);
+
+  // ── NetflixAPI-inspired Stream Interceptor ──────────────────────────────────
+  // Listen for handshake network requests, iframe messages, and resource timings
+  // to feed the active session-tokenized stream into HlsVideoPlayer
+  useEffect(() => {
+    if (!currentServerUrl || useNativePlayer) return;
+
+    const cleanup = attachStreamInterceptor(currentServerUrl, (result) => {
+      if (result?.streamUrl) {
+        setExtractedStreamUrl(result.streamUrl);
+        setUseNativePlayer(true);
+        setUseNativeEmbed(false);
+        setPlayerState("ready");
+      }
+    });
+
+    return cleanup;
+  }, [currentServerUrl, useNativePlayer]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -340,6 +440,34 @@ export default function VideoPlayer({
           } catch {
             setIframeKey((k) => k + 1);
           }
+        }
+      }
+      // Check with hybrid resolution API for the target embed URL
+      if (targetUrl) {
+        try {
+          const res = await fetch(`/api/resolve?url=${encodeURIComponent(targetUrl)}`);
+          if (res.ok) {
+            const resolvedData = await res.json();
+            const isLocked = SESSION_LOCKED_HOSTS.some((h) =>
+              (resolvedData.streamUrl || "").toLowerCase().includes(h) ||
+              targetUrl.toLowerCase().includes(h)
+            );
+
+            if (resolvedData.streamUrl && !resolvedData.useNativeEmbed && !isLocked) {
+              setExtractedStreamUrl(resolvedData.streamUrl);
+              setUseNativePlayer(true);
+              setUseNativeEmbed(false);
+              setPlayerState("ready");
+              return;
+            } else if (resolvedData.useNativeEmbed || isLocked) {
+              if (resolvedData.embedUrl) setResolvedUrlOverride(resolvedData.embedUrl);
+              setUseNativePlayer(false);
+              setUseNativeEmbed(true);
+              setExtractedStreamUrl(null);
+            }
+          }
+        } catch {
+          // Fallback to overlay ad-blocker embed
         }
       }
 
@@ -452,12 +580,23 @@ export default function VideoPlayer({
   const poster = backdropPath || posterPath;
   const displayTitle = mediaType === "movie" ? title : `${title} — Ep ${episode}`;
 
+  const cleanStreamUrl =
+    directStreamSource?.url ||
+    (extractedStreamUrl && extractedStreamUrl.startsWith("/api/proxy/stream") ? extractedStreamUrl : "");
+
+  // Render HlsVideoPlayer ONLY when a clean, non-locked stream URL is resolved
+  // Proxied streams (/api/proxy/stream) mirror the captured session context and are safe
+  const isCleanStream =
+    Boolean(cleanStreamUrl) &&
+    (cleanStreamUrl.startsWith("/api/proxy/stream") ||
+      !SESSION_LOCKED_HOSTS.some((h) => cleanStreamUrl.toLowerCase().includes(h)));
+
   // Whether we should render the high-end custom HlsVideoPlayer
   const showNativeHls =
     playerState !== "idle" &&
     useNativePlayer &&
-    directStreamSource !== null &&
-    Boolean(directStreamSource?.url);
+    !useNativeEmbed &&
+    isCleanStream;
 
   return (
     <div className="w-full flex flex-col gap-2.5">
@@ -465,23 +604,27 @@ export default function VideoPlayer({
       <div className="flex items-center gap-1.5 flex-wrap px-0.5">
         {/* Stream Mode Badge & Mirror Switcher */}
         <div className="flex items-center gap-1.5 mr-1">
-          {useNativePlayer ? (
+          {showNativeHls ? (
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               ⚡ Native Player (Ad-Free)
             </span>
           ) : (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/50 text-xs font-medium">
-              Embed Mirror
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              🛡️ Ad Shield Active
             </span>
           )}
-          {extractedStreamUrl && (
+          {cleanStreamUrl && (
             <button
-              onClick={() => setUseNativePlayer((p) => !p)}
+              onClick={() => {
+                setUseNativePlayer((p) => !p);
+                setUseNativeEmbed((e) => !e);
+              }}
               className="text-[11px] text-white/40 hover:text-white underline underline-offset-2 ml-0.5 transition"
-              title={useNativePlayer ? "Switch to Embed Mirror" : "Switch to Direct Ad-Free Player"}
+              title={showNativeHls ? "Switch to Embed Mirror" : "Switch to Direct Ad-Free Player"}
             >
-              {useNativePlayer ? "Mirror" : "Direct"}
+              {showNativeHls ? "Mirror" : "Direct"}
             </button>
           )}
         </div>
@@ -545,8 +688,8 @@ export default function VideoPlayer({
         {/* NATIVE HIGH-END HLS VIDEO PLAYER */}
         {showNativeHls ? (
           <HlsVideoPlayer
-            key={`native-${episode}-${directStreamSource.url}`}
-            src={directStreamSource.url}
+            key={`native-${episode}-${cleanStreamUrl}`}
+            src={cleanStreamUrl}
             poster={poster}
             initialTime={savedPlaybackTime}
             title={displayTitle}
@@ -656,16 +799,12 @@ export default function VideoPlayer({
               </div>
             )}
 
-            {/* IFRAME: Clean fallback mirror without restrictive sandbox that triggers anti-embed blockers */}
+            {/* OVERLAY AD-BLOCKER: Unsandboxed iframe + click shield for session-locked / embed hosts */}
             {isReady && activeServer && (
-              <iframe
+              <OverlayAdBlocker
                 key={`player-frame-${iframeKey}-${activeServerIndex}-${episode}-${selectedLang}`}
-                src={activeEmbedUrl}
+                embedUrl={currentServerUrl}
                 title={displayTitle}
-                className="absolute inset-0 w-full h-full border-0 z-10"
-                allowFullScreen
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
-                referrerPolicy="no-referrer-when-downgrade"
                 onLoad={handleIframeLoad}
                 onError={handleIframeError}
               />

@@ -40,6 +40,8 @@ export interface ResolvedDirectStreamResult {
   subtitles: StreamSubtitleTrack[];
   provider?: string;
   fallbackEmbedUrl?: string;
+  useNativeEmbed?: boolean;
+  embedUrl?: string;
   error?: string;
 }
 

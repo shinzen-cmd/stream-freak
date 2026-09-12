@@ -7,6 +7,21 @@ import { ResolvedDirectStreamResult, StreamSubtitleTrack, StreamAudioTrack } fro
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * Handle CORS preflight requests
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+}
+
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -269,7 +284,9 @@ export async function GET(req: NextRequest) {
       // 1. Direct sources from workers
       if (animeResult.directSources && animeResult.directSources.length > 0) {
         const rawDirect = animeResult.directSources[0].url;
-        const proxied = `/api/proxy/stream?url=${encodeURIComponent(rawDirect)}&referer=${encodeURIComponent(rawDirect)}`;
+        const proxied = rawDirect.startsWith("/api/proxy/stream")
+          ? rawDirect
+          : `/api/proxy/stream?url=${encodeURIComponent(rawDirect)}&referer=${encodeURIComponent("https://zorotv.ba/")}`;
         return NextResponse.json({
           success: true,
           streamUrl: proxied,
@@ -331,121 +348,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── CASE 2: MOVIES & TV SHOWS STREAM RESOLUTION ───────────────────────────
-  async function resolveVidSrcTo(
-    tmdbId: string | number,
-    mediaType: MediaType,
-    season: number = 1,
-    episode: number = 1
-  ): Promise<string | null> {
-    const endpoints =
-      mediaType === "movie"
-        ? [
-            `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
-            `https://vidsrc.to/embed/movie/${tmdbId}`,
-            `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
-          ]
-        : [
-            `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
-            `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`,
-            `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
-          ];
-
-    for (const url of endpoints) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-
-        const res = await fetch(url, {
-          headers: {
-            "User-Agent": USER_AGENT,
-          },
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
-        if (!res.ok) continue;
-
-        const html = await res.text();
-        const match = html.match(/https:\/\/[^"']+\.m3u8[^"']*/);
-        if (match && match[0]) {
-          return match[0];
-        }
-      } catch {
-        // try next endpoint
-      }
-    }
-
-    return null;
-  }
-
-  const targetTmdbId = tmdbId || id;
-  const defaultAudioTracks: StreamAudioTrack[] = [
-    { id: "original", label: "Original Audio (English)", lang: "en", isDefault: true },
-    { id: "hindi", label: "Hindi Dub (When Available)", lang: "hi" },
-    { id: "spanish", label: "Spanish Dub (When Available)", lang: "es" },
-  ];
-
-  if (targetTmdbId) {
-    const vidsrcUrl = await resolveVidSrcTo(targetTmdbId, mediaType, season, episode);
-    if (vidsrcUrl) {
-      const proxied = `/api/proxy/stream?url=${encodeURIComponent(vidsrcUrl)}&referer=${encodeURIComponent("https://vidsrc.to/")}`;
-      return NextResponse.json({
-        success: true,
-        streamUrl: proxied,
-        rawUrl: vidsrcUrl,
-        type: "hls",
-        quality: "1080p",
-        audioTracks: defaultAudioTracks,
-        subtitles: [],
-        provider: "VidSrc.to",
-        fallbackEmbedUrl: `https://vidsrc.to/embed/${mediaType}/${targetTmdbId}${
-          mediaType === "tv" ? `/${season}/${episode}` : ""
-        }`,
-      } as ResolvedDirectStreamResult);
-    }
-  }
-
-  const servers = getPlayerServers({
-    mediaType,
-    id,
-    season,
-    episode,
-    tmdbId,
-    audioMode,
-    title,
-  });
-
-  // Attempt stream extraction across servers in order
-  for (const srv of servers) {
-    if (!srv.url) continue;
-
-    const extracted = await extractFromEmbed(srv.url);
-    if (extracted.streamUrl) {
-      const proxied = `/api/proxy/stream?url=${encodeURIComponent(extracted.streamUrl)}&referer=${encodeURIComponent(srv.url)}`;
-      return NextResponse.json({
-        success: true,
-        streamUrl: proxied,
-        rawUrl: extracted.streamUrl,
-        type: extracted.type,
-        quality: "1080p",
-        audioTracks: defaultAudioTracks,
-        subtitles: extracted.subtitles,
-        provider: srv.name,
-        fallbackEmbedUrl: srv.url,
-      } as ResolvedDirectStreamResult);
-    }
-  }
-
-  // If extraction not directly possible, return primary fallback server
   return NextResponse.json({
     success: false,
     streamUrl: null,
     type: "hls",
-    audioTracks: defaultAudioTracks,
+    audioTracks: [],
     subtitles: [],
-    provider: servers[0]?.name || "Embed Fallback",
-    fallbackEmbedUrl: servers[0]?.url || "",
+    provider: "Embed Fallback",
+    fallbackEmbedUrl: "",
   } as ResolvedDirectStreamResult);
 }
+

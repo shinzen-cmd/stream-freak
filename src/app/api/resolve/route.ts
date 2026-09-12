@@ -3,6 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+}
+
+const SESSION_LOCKED_HOSTS = [
+  "megavid.buzz",
+  "cp.megavid.buzz",
+  "zorotv.ba",
+  "api-webs.com",
+  "cdn.api-webs.com",
+  "vidlink.pro",
+  "vidsrc.cc",
+];
+
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -12,45 +34,16 @@ interface ExtractedSubtitle {
   label?: string;
 }
 
-/**
- * Pure TypeScript unpacker for Dean Edwards p,a,c,k,e,d obfuscated JavaScript.
- * Runs safely without executing code or calling eval().
- */
-function unpackPackedJs(packedCode: string): string {
-  try {
-    const match = packedCode.match(
-      /}\s*\(\s*['"]([\s\S]+?)['"]\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*['"]([\s\S]*?)['"]\.split\(['"]\|['"]\)/
-    );
-    if (!match) return "";
-
-    const [, payload, aStr, cStr, keyStr] = match;
-    const a = parseInt(aStr, 10);
-    let c = parseInt(cStr, 10);
-    const k = keyStr.split("|");
-
-    const e = (val: number): string => {
-      return (
-        (val < a ? "" : e(Math.floor(val / a))) +
-        ((val = val % a) > 35 ? String.fromCharCode(val + 29) : val.toString(36))
-      );
-    };
-
-    const dict: Record<string, string> = {};
-    while (c--) {
-      dict[e(c)] = k[c] || e(c);
-    }
-
-    return payload.replace(/\b\w+\b/g, (w) => dict[w] || w);
-  } catch {
-    return "";
-  }
+interface MovieboxStreamResult {
+  streamUrl: string;
+  rawUrl: string;
+  referer: string;
 }
 
 /**
  * Searches HTML or script content for .m3u8 or direct .mp4 streaming sources.
  */
 function findStreamLinks(content: string): { streamUrl: string | null; type: "hls" | "mp4" } {
-  // Normalize escaped backslashes commonly found in JSON responses (e.g., https:\/\/...)
   const normalized = content.replace(/\\\//g, "/");
 
   // 1. Check for explicit HLS stream files
@@ -92,215 +85,254 @@ function findStreamLinks(content: string): { streamUrl: string | null; type: "hl
 }
 
 /**
- * Searches for subtitle cues in HTML or JS objects
+ * Extracts TMDB media metadata from target URL and search parameters
  */
-function findSubtitles(content: string): ExtractedSubtitle[] {
-  const subtitles: ExtractedSubtitle[] = [];
-  const normalized = content.replace(/\\\//g, "/");
+function extractMediaMetadata(targetUrl: string | null, searchParams: URLSearchParams) {
+  let tmdbId = searchParams.get("tmdbId") || searchParams.get("id") || "";
+  let mediaType = searchParams.get("mediaType") || searchParams.get("type") || "movie";
+  let season = searchParams.get("season") || "1";
+  let episode = searchParams.get("episode") || "1";
 
-  // Track elements: <track kind="subtitles" src="..." label="..." srclang="..." />
-  const trackRegex = /<track[^>]+src=["']([^"']+\.(?:vtt|srt)[^"']*)["'][^>]*>/gi;
-  let trackMatch;
-  while ((trackMatch = trackRegex.exec(normalized)) !== null) {
-    const trackTag = trackMatch[0];
-    const src = trackMatch[1];
-    const labelMatch = trackTag.match(/label=["']([^"']+)["']/i);
-    const langMatch = trackTag.match(/srclang=["']([^"']+)["']/i);
-    subtitles.push({
-      url: src,
-      lang: langMatch ? langMatch[1] : labelMatch ? labelMatch[1] : "en",
-      label: labelMatch ? labelMatch[1] : "English",
-    });
+  if (targetUrl) {
+    try {
+      const parsed = new URL(targetUrl);
+      if (!tmdbId) {
+        tmdbId =
+          parsed.searchParams.get("tmdb") ||
+          parsed.searchParams.get("tmdbId") ||
+          parsed.searchParams.get("id") ||
+          parsed.searchParams.get("video_id") ||
+          "";
+      }
+      if (searchParams.get("season") == null && (parsed.searchParams.has("season") || parsed.searchParams.has("s"))) {
+        season = parsed.searchParams.get("season") || parsed.searchParams.get("s") || "1";
+      }
+      if (searchParams.get("episode") == null && (parsed.searchParams.has("episode") || parsed.searchParams.has("e"))) {
+        episode = parsed.searchParams.get("episode") || parsed.searchParams.get("e") || "1";
+      }
+      if (searchParams.get("mediaType") == null && searchParams.get("type") == null) {
+        if (targetUrl.includes("/tv/") || targetUrl.includes("embedtv") || parsed.searchParams.has("s")) {
+          mediaType = "tv";
+        }
+      }
+
+      if (!tmdbId) {
+        const pathMatches = [
+          /\/embed\/(?:movie|tv|anime|video)\/([0-9]+)/i,
+          /\/embed\/([0-9]+)/i,
+          /\/(?:movie|tv)\/([0-9]+)/i,
+          /\/mal\/([0-9]+)/i,
+          /\/([0-9]{3,8})/i,
+        ];
+        for (const regex of pathMatches) {
+          const m = parsed.pathname.match(regex);
+          if (m && m[1]) {
+            tmdbId = m[1];
+            break;
+          }
+        }
+      }
+
+      const seMatch = parsed.pathname.match(/\/(?:tv|anime)\/[0-9]+\/([0-9]+)\/([0-9]+)/i);
+      if (seMatch) {
+        season = seMatch[1];
+        episode = seMatch[2];
+      }
+    } catch {}
   }
 
-  // JSON tracks definition: tracks: [{ file: "...", label: "..." }]
-  const jsonTrackRegex = /\{\s*file\s*:\s*["']([^"']+\.(?:vtt|srt)[^"']*)["']\s*,\s*label\s*:\s*["']([^"']+)["']/gi;
-  let jsonMatch;
-  while ((jsonMatch = jsonTrackRegex.exec(normalized)) !== null) {
-    subtitles.push({
-      url: jsonMatch[1],
-      lang: jsonMatch[2].toLowerCase().slice(0, 2),
-      label: jsonMatch[2],
+  const cleanTmdbId = tmdbId.replace(/[^0-9]/g, "");
+  const cleanSeason = parseInt(season, 10) || 1;
+  const cleanEpisode = parseInt(episode, 10) || 1;
+  const cleanMediaType = mediaType === "tv" ? "tv" : "movie";
+
+  return {
+    tmdbId: cleanTmdbId,
+    mediaType: cleanMediaType as "movie" | "tv",
+    season: cleanSeason,
+    episode: cleanEpisode,
+  };
+}
+
+/**
+ * Primary Resolver: Queries Moviebox-API for direct streaming sources.
+ * Endpoint: process.env.MOVIEBOX_API_URL || "https://moviebox-api-six.vercel.app/api/"
+ */
+async function fetchMovieboxStream(
+  tmdbId: string,
+  mediaType: "movie" | "tv",
+  season: number,
+  episode: number,
+  embedLink?: string | null
+): Promise<MovieboxStreamResult | null> {
+  const baseUrl = (process.env.MOVIEBOX_API_URL || "https://moviebox-api-six.vercel.app/api/").trim();
+  const cleanBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+
+  const candidates: string[] = [];
+
+  if (tmdbId) {
+    const q1 = new URLSearchParams({
+      id: tmdbId,
+      tmdbId,
+      type: mediaType,
+      season: String(season),
+      episode: String(episode),
     });
+    candidates.push(`${cleanBase}?${q1.toString()}`);
+    candidates.push(`${cleanBase}stream?${q1.toString()}`);
+    candidates.push(`${cleanBase}${mediaType}?${q1.toString()}`);
   }
 
-  return subtitles;
+  if (embedLink) {
+    const q2 = new URLSearchParams({ url: embedLink });
+    candidates.push(`${cleanBase}?${q2.toString()}`);
+    candidates.push(`${cleanBase}resolve?${q2.toString()}`);
+  }
+
+  for (const candidateUrl of candidates) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+
+      const res = await fetch(candidateUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "application/json, text/plain, */*",
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+
+      if (!res.ok) continue;
+
+      const contentType = res.headers.get("content-type") || "";
+      let rawM3u8: string | null = null;
+      let referer = "https://themoviebox.xyz/";
+
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        rawM3u8 =
+          data?.streamUrl ||
+          data?.url ||
+          data?.source ||
+          data?.file ||
+          data?.data?.url ||
+          data?.data?.streamUrl ||
+          data?.streams?.[0]?.url ||
+          data?.sources?.[0]?.url ||
+          null;
+
+        if (data?.referer) referer = data.referer;
+      } else {
+        const text = await res.text();
+        const found = findStreamLinks(text);
+        rawM3u8 = found.streamUrl;
+      }
+
+      if (rawM3u8 && (rawM3u8.includes(".m3u8") || rawM3u8.includes(".mp4"))) {
+        const proxiedUrl = `/api/proxy/stream?url=${encodeURIComponent(rawM3u8)}&referer=${encodeURIComponent(referer)}`;
+        return {
+          streamUrl: proxiedUrl,
+          rawUrl: rawM3u8,
+          referer,
+        };
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get("url");
+  const directId = searchParams.get("tmdbId") || searchParams.get("id");
 
-  if (!targetUrl) {
+  if (!targetUrl && !directId) {
     return NextResponse.json(
-      { error: "Bad Request", message: "Missing 'url' query parameter" },
+      { error: "Bad Request", message: "Missing 'url' or 'id' query parameter" },
       { status: 400 }
     );
   }
 
-  let parsedTarget: URL;
-  try {
-    parsedTarget = new URL(targetUrl);
-  } catch {
-    return NextResponse.json(
-      { error: "Bad Request", message: "Invalid target URL" },
-      { status: 400 }
-    );
-  }
+  // 1. Extract metadata
+  const meta = extractMediaMetadata(targetUrl, searchParams);
+  const tmdbId = meta.tmdbId;
+  const mediaType = meta.mediaType;
+  const season = meta.season;
+  const episode = meta.episode;
 
-  const targetOrigin = parsedTarget.origin;
-  const reqHeaders = {
-    "User-Agent": USER_AGENT,
-    Referer: `${targetOrigin}/`,
-    Origin: targetOrigin,
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-  };
-
-  try {
-    // 1. Fetch the target embed page
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6500);
-
-    const res = await fetch(targetUrl, {
-      method: "GET",
-      headers: reqHeaders,
-      signal: controller.signal,
-      redirect: "follow",
-    });
-
-    clearTimeout(timeout);
-
-    if (!res.ok) {
+  // 2. Primary Resolver: Query Moviebox-API
+  if (tmdbId || targetUrl) {
+    const movieboxResult = await fetchMovieboxStream(tmdbId, mediaType, season, episode, targetUrl);
+    if (movieboxResult?.streamUrl) {
       return NextResponse.json(
         {
-          success: false,
-          error: `Upstream embed returned status ${res.status}`,
-          fallbackUrl: targetUrl,
+          success: true,
+          useNativeEmbed: false,
+          streamUrl: movieboxResult.streamUrl,
+          rawUrl: movieboxResult.rawUrl,
+          type: "hls",
+          provider: "Moviebox-API Direct",
+          subtitles: [],
         },
-        { status: 200 }
+        { headers: { "Access-Control-Allow-Origin": "*" } }
       );
     }
-
-    const contentType = res.headers.get("content-type") || "";
-
-    // If the response is already directly an HLS playlist or MP4 stream
-    if (
-      contentType.includes("application/vnd.apple.mpegurl") ||
-      contentType.includes("application/x-mpegurl") ||
-      targetUrl.includes(".m3u8")
-    ) {
-      const proxied = `/api/proxy/stream?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(targetUrl)}`;
-      return NextResponse.json({
-        success: true,
-        streamUrl: proxied,
-        rawUrl: targetUrl,
-        type: "hls",
-        subtitles: [],
-      });
-    }
-
-    const html = await res.text();
-
-    // 2. Direct search in page HTML
-    let { streamUrl, type } = findStreamLinks(html);
-    let subtitles = findSubtitles(html);
-
-    // 3. Search inside Dean Edwards packed JS if present
-    if (!streamUrl && html.includes("eval(function(p,a,c,k,e,d)")) {
-      const packedParts = html.split("eval(function(p,a,c,k,e,d)");
-      for (let i = 1; i < packedParts.length; i++) {
-        const snippet = "eval(function(p,a,c,k,e,d)" + packedParts[i].split("</script>")[0];
-        const unpacked = unpackPackedJs(snippet);
-        if (unpacked) {
-          const unpackedRes = findStreamLinks(unpacked);
-          if (unpackedRes.streamUrl) {
-            streamUrl = unpackedRes.streamUrl;
-            type = unpackedRes.type;
-            const unpackedSubs = findSubtitles(unpacked);
-            if (unpackedSubs.length > 0) subtitles = unpackedSubs;
-            break;
-          }
-        }
-      }
-    }
-
-    // 4. Check for nested player iframes (e.g., VidSrc /srcrc/ or sub-server mirrors)
-    if (!streamUrl) {
-      const iframeMatch = html.match(/<iframe[^>]+src=["']([^"']+)["']/i);
-      if (iframeMatch && iframeMatch[1]) {
-        let subUrl = iframeMatch[1].trim();
-        if (subUrl.startsWith("//")) {
-          subUrl = `https:${subUrl}`;
-        } else if (subUrl.startsWith("/")) {
-          subUrl = `${targetOrigin}${subUrl}`;
-        }
-
-        if (subUrl.startsWith("http")) {
-          try {
-            const subController = new AbortController();
-            const subTimeout = setTimeout(() => subController.abort(), 4000);
-            const subRes = await fetch(subUrl, {
-              headers: {
-                ...reqHeaders,
-                Referer: targetUrl,
-              },
-              signal: subController.signal,
-            });
-            clearTimeout(subTimeout);
-
-            if (subRes.ok) {
-              const subText = await subRes.text();
-              const subStream = findStreamLinks(subText);
-              if (subStream.streamUrl) {
-                streamUrl = subStream.streamUrl;
-                type = subStream.type;
-                const subSubs = findSubtitles(subText);
-                if (subSubs.length > 0) subtitles = subSubs;
-              } else if (subText.includes("eval(function(p,a,c,k,e,d)")) {
-                const unpackedSub = unpackPackedJs(subText);
-                const unpackedSubStream = findStreamLinks(unpackedSub);
-                if (unpackedSubStream.streamUrl) {
-                  streamUrl = unpackedSubStream.streamUrl;
-                  type = unpackedSubStream.type;
-                }
-              }
-            }
-          } catch {
-            // Ignore sub-iframe fetch failure
-          }
-        }
-      }
-    }
-
-    // 5. Result response
-    if (streamUrl) {
-      const proxied = `/api/proxy/stream?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(targetUrl)}`;
-      return NextResponse.json({
-        success: true,
-        streamUrl: proxied,
-        rawUrl: streamUrl,
-        type,
-        subtitles,
-      });
-    }
-
-    // No direct stream extracted: indicate fallback to sandboxed iframe
-    return NextResponse.json({
-      success: false,
-      error: "Direct stream manifest not found in provider output",
-      fallbackUrl: targetUrl,
-      subtitles: [],
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Stream resolution error",
-        details: err?.message || String(err),
-        fallbackUrl: targetUrl,
-      },
-      { status: 200 }
-    );
   }
+
+  // Megavid fallback embed URL
+  const fallbackTmdbId = tmdbId || "550";
+  const megavidUrl =
+    mediaType === "tv" && season && episode
+      ? `https://megavid.buzz/embed/${fallbackTmdbId}/${season}/${episode}`
+      : `https://megavid.buzz/embed/${fallbackTmdbId}`;
+
+  // If targetUrl is an explicit session-locked host, route cleanly to fallback embed
+  if (targetUrl) {
+    let parsedTarget: URL | null = null;
+    try {
+      parsedTarget = new URL(targetUrl);
+    } catch {}
+
+    const isSessionLocked =
+      parsedTarget &&
+      SESSION_LOCKED_HOSTS.some(
+        (host) =>
+          parsedTarget!.hostname.toLowerCase().includes(host.toLowerCase()) ||
+          targetUrl.toLowerCase().includes(host.toLowerCase())
+      );
+
+    if (isSessionLocked) {
+      return NextResponse.json(
+        {
+          success: true,
+          useNativeEmbed: true,
+          embedUrl: targetUrl.includes("megavid.buzz") ? targetUrl : megavidUrl,
+          streamUrl: null,
+          provider: "Megavid Fallback Embed",
+          subtitles: [],
+        },
+        { headers: { "Access-Control-Allow-Origin": "*" } }
+      );
+    }
+  }
+
+  // 3. Secondary Resolver (Fallback): Mount Megavid cleanly via OverlayAdBlocker
+  return NextResponse.json(
+    {
+      success: true,
+      useNativeEmbed: true,
+      embedUrl: megavidUrl,
+      streamUrl: null,
+      fallbackUrl: megavidUrl,
+      provider: "Megavid Fallback Embed",
+      subtitles: [],
+    },
+    { headers: { "Access-Control-Allow-Origin": "*" } }
+  );
 }

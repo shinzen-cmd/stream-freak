@@ -25,6 +25,22 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
+  ...(isExport
+    ? {}
+    : {
+        async headers() {
+          return [
+            {
+              source: "/api/:path*",
+              headers: [
+                { key: "Access-Control-Allow-Origin", value: "*" },
+                { key: "Access-Control-Allow-Methods", value: "GET, HEAD, OPTIONS, POST, PUT, DELETE" },
+                { key: "Access-Control-Allow-Headers", value: "*" },
+              ],
+            },
+          ];
+        },
+      }),
 };
 
 export default nextConfig;

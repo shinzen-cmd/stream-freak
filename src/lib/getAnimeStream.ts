@@ -171,12 +171,10 @@ export function getAnimeEmbedMirrors(
     : `https://vidlink.pro/anime/${cleanAniId}/${ep}/${audioSuffix}`;
 
   return [
-    { id: "s-vidsrc-me", name: "Server 1", url: sVidSrcMe },
-    { id: "s-vidsrc-pm", name: "Server 2", url: sVidSrcPm },
-    { id: "s-vidsrc-su", name: "Server 3", url: sVidSrcSu },
-    { id: "s-multiembed", name: "Server 4", url: sMultiEmbed },
-    { id: "s-2embed", name: "Server 5", url: s2Embed },
-    { id: "s-vidlink", name: "Server 6", url: sVidLink },
+    { id: "s1", name: "Server 1", url: `https://vidnest.fun/anime/${cleanAniId}/${ep}/${audioSuffix}` },
+    { id: "s2", name: "Server 2", url: `https://vidnest.fun/animepahe/${cleanAniId}/${ep}/${audioSuffix}` },
+    { id: "s3", name: "Server 3", url: cleanMalId ? `https://vidsrc.me/embed/anime?mal=${cleanMalId}&episode=${ep}` : `https://vidsrc.me/embed/anime?anilist=${cleanAniId}&episode=${ep}` },
+    { id: "s4", name: "Server 4", url: `https://vidlink.pro/anime/${cleanMalId || cleanAniId}/${ep}/${audioSuffix}` },
   ];
 }
 
@@ -205,12 +203,22 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(`https://megavid.buzz/mal/${malId}/${episode}/${audioMode}/source`, {
-        headers: {
-          Referer: "https://zorotv.ba/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        },
+      const targetUrl = `https://megavid.buzz/mal/${malId}/${episode}/${audioMode}/source`;
+      const isBrowser = typeof window !== "undefined";
+      const fetchUrl = isBrowser
+        ? `/api/proxy/stream?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent("https://zorotv.ba/")}`
+        : targetUrl;
+
+      const headers: HeadersInit = isBrowser
+        ? {}
+        : {
+            Referer: "https://zorotv.ba/",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          };
+
+      const res = await fetch(fetchUrl, {
+        headers,
         signal: controller.signal,
       });
 
@@ -233,29 +241,7 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
     }
   }
 
-  if (isValidId(params.malId)) {
-    const directUrl = await resolveMegaVid(params.malId!, ep, audio);
-    if (directUrl) {
-      return {
-        success: true,
-        provider: "MegaVid Direct",
-        tier: 1,
-        directSources: [
-          {
-            url: directUrl,
-            quality: "1080p",
-            isM3U8: true,
-            type: "hls",
-          },
-        ],
-        subtitles: [],
-        embedUrl: fallbackEmbeds[0]?.url ?? "",
-        fallbackEmbeds,
-      };
-    }
-  }
-
-  // Fast path fallback: skip worker queries, go straight to embed mirrors
+  // MegaVid / Zorotv are session-locked with token validation; route to embed mirrors
   const quickResult: AnimeStreamResult = {
     success: true,
     provider: "Embed Mirror Gateway",
@@ -266,6 +252,7 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
     fallbackEmbeds,
   };
   return quickResult;
+
 
   try {
     const malId = isValidId(params.malId) ? String(params.malId) : "";

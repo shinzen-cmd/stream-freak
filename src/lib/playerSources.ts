@@ -35,6 +35,7 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
     malId,
     audioMode = "sub",
     lang = "en",
+    title,
   } = config;
 
   const targetId =
@@ -52,40 +53,17 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
   if (mediaType === "movie") {
     if (isMultiLang) {
       return [
-        {
-          id: "s-multi",
-          name: `Server 1 (${langUpper} Multi-Audio HD)`,
-          url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&lang=${lang}`,
-        },
-        {
-          id: "s-2embed",
-          name: `Server 2 (${langUpper} Regional)`,
-          url: `https://2embed.cc/embed/${targetId}`,
-        },
-        {
-          id: "s-vidsrc",
-          name: "Server 3 (VidSrc Multi)",
-          url: `https://vidsrc.me/embed/movie?tmdb=${targetId}`,
-        },
-        {
-          id: "s-vidlink",
-          name: "Server 4 (VidLink)",
-          url: `https://vidlink.pro/movie/${targetId}`,
-        },
-        {
-          id: "s-vidsrc-pm",
-          name: "Server 5 (VidSrc PM)",
-          url: `https://vidsrc.pm/embed/movie/${targetId}`,
-        },
+        { id: "s-multi1", name: `Server 1 (${langUpper} HD)`, url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&lang=${lang}` },
+        { id: "s-multi2", name: `Server 2 (${langUpper})`, url: `https://2embed.cc/embed/${targetId}` },
+        { id: "s-multi3", name: "Server 3 (VidLink)", url: `https://vidlink.pro/movie/${targetId}` },
+        { id: "s-multi4", name: "Server 4 (VidSrc)", url: `https://vidsrc.me/embed/movie?tmdb=${targetId}` },
       ];
     }
 
     return [
-      { id: "s1", name: "Server 1 (VidCore HD)", url: `https://vidcore.org/embed/movie/${targetId}` },
-      { id: "s2", name: "Server 2 (VidLink HD)", url: `https://vidlink.pro/movie/${targetId}` },
+      { id: "s1", name: "Server 1 (HD)", url: `https://vaplayer.ru/embed/movie/${targetId}` },
+      { id: "s2", name: "Server 2 (VidLink)", url: `https://vidlink.pro/movie/${targetId}` },
       { id: "s3", name: "Server 3 (VidSrc)", url: `https://vidsrc.me/embed/movie?tmdb=${targetId}` },
-      { id: "s4", name: "Server 4 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1` },
-      { id: "s5", name: "Server 5 (VidSrc PM)", url: `https://vidsrc.pm/embed/movie/${targetId}` },
     ];
   }
 
@@ -93,40 +71,17 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
   if (mediaType === "tv") {
     if (isMultiLang) {
       return [
-        {
-          id: "s-multi",
-          name: `Server 1 (${langUpper} Multi-Audio HD)`,
-          url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}&lang=${lang}`,
-        },
-        {
-          id: "s-2embed",
-          name: `Server 2 (${langUpper} Regional)`,
-          url: `https://2embed.cc/embedtv/${targetId}&s=${season}&e=${episode}`,
-        },
-        {
-          id: "s-vidsrc",
-          name: "Server 3 (VidSrc Multi)",
-          url: `https://vidsrc.me/embed/tv?tmdb=${targetId}&season=${season}&episode=${episode}`,
-        },
-        {
-          id: "s-vidlink",
-          name: "Server 4 (VidLink)",
-          url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}`,
-        },
-        {
-          id: "s-vidsrc-pm",
-          name: "Server 5 (VidSrc PM)",
-          url: `https://vidsrc.pm/embed/tv/${targetId}/${season}/${episode}`,
-        },
+        { id: "s-multi1", name: `Server 1 (${langUpper} HD)`, url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}&lang=${lang}` },
+        { id: "s-multi2", name: `Server 2 (${langUpper})`, url: `https://2embed.cc/embedtv/${targetId}&s=${season}&e=${episode}` },
+        { id: "s-multi3", name: "Server 3 (VidLink)", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}` },
+        { id: "s-multi4", name: "Server 4 (VidSrc)", url: `https://vidsrc.me/embed/tv?tmdb=${targetId}&season=${season}&episode=${episode}` },
       ];
     }
 
     return [
-      { id: "s1", name: "Server 1 (VidCore HD)", url: `https://vidcore.org/embed/tv/${targetId}/${season}/${episode}` },
-      { id: "s2", name: "Server 2 (VidLink HD)", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}` },
+      { id: "s1", name: "Server 1 (HD)", url: `https://vaplayer.ru/embed/tv/${targetId}/${season}/${episode}` },
+      { id: "s2", name: "Server 2 (VidLink)", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}` },
       { id: "s3", name: "Server 3 (VidSrc)", url: `https://vidsrc.me/embed/tv?tmdb=${targetId}&season=${season}&episode=${episode}` },
-      { id: "s4", name: "Server 4 (MultiEmbed)", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}` },
-      { id: "s5", name: "Server 5 (VidSrc PM)", url: `https://vidsrc.pm/embed/tv/${targetId}/${season}/${episode}` },
     ];
   }
 
