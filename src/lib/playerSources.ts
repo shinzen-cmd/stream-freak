@@ -69,10 +69,12 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
 
   console.log('targetId:', targetId, 'tmdbId:', tmdbId, 'id:', id);
 
+  const vidRockQuery = `?theme=10b981${lang && lang !== "en" ? `&lang=${encodeURIComponent(lang)}` : ""}`;
+
   // ── MOVIE ──────────────────────────────────────────────────────────
   if (mediaType === "movie") {
     return [
-      { id: "s1", name: "Server 1", url: `https://vidrock.net/movie/${targetId}`, quality: "1080p", description: "VidRock Primary" },
+      { id: "s1", name: "Server 1", url: `https://vidrock.net/movie/${targetId}${vidRockQuery}`, quality: "1080p", description: "VidRock Primary" },
       { id: "s2", name: "Server 2", url: `https://vidlink.pro/movie/${targetId}`, quality: "1080p", description: isMultiLang ? `VidLink (${langUpper})` : "VidLink Backup" },
       { id: "s3", name: "Server 3", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1${isMultiLang ? `&lang=${lang}` : ""}`, quality: "HD", description: "MultiEmbed Fallback" },
     ];
@@ -81,7 +83,7 @@ export function getPlayerServers(config: StreamSourceConfig): PlayerServer[] {
   // ── TV SHOWS ──────────────────────────────────────────────────────
   if (mediaType === "tv") {
     return [
-      { id: "s1", name: "Server 1", url: `https://vidrock.net/tv/${targetId}/${season}/${episode}`, quality: "1080p", description: "VidRock Primary" },
+      { id: "s1", name: "Server 1", url: `https://vidrock.net/tv/${targetId}/${season}/${episode}${vidRockQuery}`, quality: "1080p", description: "VidRock Primary" },
       { id: "s2", name: "Server 2", url: `https://vidlink.pro/tv/${targetId}/${season}/${episode}`, quality: "1080p", description: isMultiLang ? `VidLink (${langUpper})` : "VidLink Backup" },
       { id: "s3", name: "Server 3", url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&s=${season}&e=${episode}${isMultiLang ? `&lang=${lang}` : ""}`, quality: "HD", description: "MultiEmbed Fallback" },
     ];

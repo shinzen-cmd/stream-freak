@@ -18,6 +18,8 @@ import {
   Layers,
   X,
   Lock,
+  Cloud,
+  Languages,
 } from "lucide-react";
 import { MediaType, PlayerServer } from "@/types/media";
 import { getPlayerServers } from "@/lib/playerSources";
@@ -57,6 +59,7 @@ interface VideoPlayerProps {
   episodeTitle?: string;
   onEpisodeChange?: (season: number, episode: number) => void;
   totalEpisodes?: number;
+  onLangCycle?: () => void;
   autoPlay?: boolean;
 }
 
@@ -76,6 +79,7 @@ export default function VideoPlayer({
   episodeTitle,
   onEpisodeChange,
   totalEpisodes,
+  onLangCycle,
   autoPlay = false,
 }: VideoPlayerProps) {
   const { updateContinueWatching } = useWatchlist();
@@ -1000,6 +1004,26 @@ export default function VideoPlayer({
 
         {/* Right: Quick Action Buttons */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Language / Dub Quick Switcher (Movies & TV) */}
+          {mediaType !== "anime" && onLangCycle && (
+            <button
+              onClick={onLangCycle}
+              title="Switch audio preference (English / Hindi / Tamil / Telugu)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white/85 text-xs font-semibold border border-white/10 transition cursor-pointer"
+            >
+              <Languages className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="uppercase">
+                {selectedLang === "hi"
+                  ? "Hindi"
+                  : selectedLang === "ta"
+                  ? "Tamil"
+                  : selectedLang === "te"
+                  ? "Telugu"
+                  : "English"}
+              </span>
+            </button>
+          )}
+
           {/* Previous / Next Episode */}
           {mediaType !== "movie" && (
             <>
@@ -1116,6 +1140,28 @@ export default function VideoPlayer({
           <p className="text-[11px] text-orange-400/70">{failedServers.size} mirror(s) failed</p>
         )}
       </div>
+
+      {/* Clear audio-switch guidance for VidRock's hidden Cloud menu */}
+      {mediaType !== "anime" && (currentServerUrl || "").includes("vidrock.net") && (
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition ${
+            selectedLang !== "en"
+              ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-200"
+              : "bg-white/[0.03] border-white/[0.07] text-white/60"
+          }`}
+        >
+          <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="leading-snug">
+            {selectedLang === "hi"
+              ? "Hindi Dub selected — tap the Cloud icon inside the VidRock player (bottom-right) and pick the Hindi server."
+              : selectedLang === "ta"
+              ? "Tamil selected — tap the Cloud icon inside the VidRock player (bottom-right) and pick the Tamil/Hindi server."
+              : selectedLang === "te"
+              ? "Telugu selected — tap the Cloud icon inside the VidRock player (bottom-right) and pick the Telugu/Hindi server."
+              : "For Hindi, Tamil, or Telugu dub audio: tap the Cloud icon inside the VidRock player (bottom-right) to switch audio servers."}
+          </span>
+        </div>
+      )}
 
       {/* ── ANIFLIX SHADOW ARMY SERVER SWITCHER MODAL ─────────────────── */}
       {isServerModalOpen && (

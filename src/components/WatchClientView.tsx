@@ -147,20 +147,25 @@ export default function WatchClientView({
     []
   );
 
-  // Quick Cycle Audio (Aniflix Feature: Sub -> Dub -> Hindi -> Sub)
+  // Quick Cycle Audio (Anime: Sub / Dub; Movies & TV: English -> Hindi -> Tamil -> Telugu)
   const handleQuickAudioCycle = useCallback(() => {
     if (initialData.mediaType === "anime") {
-      if (audioMode === "sub") {
-        setAudioMode("dub");
-      } else {
-        setAudioMode("sub");
-      }
+      setAudioMode((prev) => (prev === "sub" ? "dub" : "sub"));
     } else {
-      const langs = ["en", "hi", "es", "fr"];
+      const langs = ["en", "hi", "ta", "te"];
       const nextIdx = (langs.indexOf(selectedLang) + 1) % langs.length;
       setSelectedLang(langs[nextIdx]);
     }
-  }, [initialData.mediaType, audioMode, selectedLang]);
+  }, [initialData.mediaType, selectedLang]);
+
+  const langDisplayLabel =
+    selectedLang === "hi"
+      ? "HINDI"
+      : selectedLang === "ta"
+      ? "TAMIL"
+      : selectedLang === "te"
+      ? "TELUGU"
+      : "ENGLISH";
 
   // Trailer lookup
   const trailerVideo = useMemo(
@@ -309,6 +314,7 @@ export default function WatchClientView({
                 autoPlay={autoPlay}
                 totalEpisodes={initialData.episodesCount || initialData.totalEpisodes}
                 onEpisodeChange={(s, e) => handleEpisodeChange(s, e)}
+                onLangCycle={handleQuickAudioCycle}
               />
             </div>
 
@@ -408,7 +414,7 @@ export default function WatchClientView({
                   <span>
                     Audio:{" "}
                     <strong className="text-emerald-300 uppercase">
-                      {initialData.mediaType === "anime" ? (audioMode === "dub" ? "ENG DUB" : "JAP SUB") : selectedLang.toUpperCase()}
+                      {initialData.mediaType === "anime" ? (audioMode === "dub" ? "ENG DUB" : "JAP SUB") : langDisplayLabel}
                     </strong>
                   </span>
                 </button>
