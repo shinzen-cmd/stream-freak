@@ -55,9 +55,9 @@ app.whenReady().then(async () => {
     },
   });
 
-  // Open external download links (like Zokoanime/Kwik) in system browser
+  // Block all embedded player ad popups; only open explicit download links in browser
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http")) {
+    if (url.startsWith("https://zokoanime.video/download/")) {
       shell.openExternal(url);
     }
     return { action: "deny" };
