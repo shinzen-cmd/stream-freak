@@ -57,7 +57,10 @@ app.whenReady().then(async () => {
 
   // Block all embedded player ad popups; only open explicit download links in browser
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://zokoanime.video/download/")) {
+    if (
+      url.startsWith("https://zokoanime.video/download/") ||
+      url.startsWith("https://vidvault.to/")
+    ) {
       shell.openExternal(url);
     }
     return { action: "deny" };

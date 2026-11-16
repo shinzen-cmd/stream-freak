@@ -21,6 +21,23 @@ function isValidId(id: unknown): boolean {
 }
 
 /**
+ * Builds the VidVault download page URL (360p / 720p / 1080p MKV) for Movies & TV.
+ */
+export function getVidVaultDownloadUrl(params: {
+  mediaType: "movie" | "tv";
+  tmdbId?: number;
+  id: string | number;
+  season?: number;
+  episode?: number;
+}): string {
+  const targetId = params.tmdbId || (typeof params.id === "number" ? params.id : String(params.id));
+  if (params.mediaType === "tv") {
+    return `https://vidvault.to/tv/${targetId}/${params.season || 1}/${params.episode || 1}`;
+  }
+  return `https://vidvault.to/movie/${targetId}`;
+}
+
+/**
  * Returns embed server URLs using only domains confirmed reachable.
  * When a non-English audio language is selected (e.g. Hindi, Spanish, French),
  * multi-language servers (MultiEmbed with lang param) are dynamically prioritized.

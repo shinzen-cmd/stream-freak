@@ -71,6 +71,7 @@ export default function DownloadModal({
 
   const effectiveStreamLink = rawStreamUrl || directStreamUrl || "";
   const isZokoDownloadPage = effectiveStreamLink.startsWith("https://zokoanime.video/download/");
+  const isVidVaultPage = effectiveStreamLink.startsWith("https://vidvault.to/");
 
   const handleCopyLink = () => {
     if (!effectiveStreamLink) return;
@@ -159,11 +160,17 @@ export default function DownloadModal({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white">
-                    {isZokoDownloadPage ? "Zokoanime / Kwik Download" : "Direct Stream Download"}
+                    {isZokoDownloadPage
+                      ? "Zokoanime / Kwik Download"
+                      : isVidVaultPage
+                      ? "VidVault Multi-Quality Download"
+                      : "Direct Stream Download"}
                   </h4>
                   <p className="text-xs text-white/50">
                     {isZokoDownloadPage
                       ? "Opens in browser · 1080p / 720p MP4 via Kwik"
+                      : isVidVaultPage
+                      ? "Opens in browser · 360p / 720p / 1080p MKV"
                       : "1080p Ultra High Bitrate · MP4/HLS"}
                   </p>
                 </div>
@@ -192,6 +199,11 @@ export default function DownloadModal({
                 <>
                   <ExternalLink className="w-4 h-4" />
                   Open Download Page (Zokoanime / Kwik)
+                </>
+              ) : isVidVaultPage ? (
+                <>
+                  <ExternalLink className="w-4 h-4" />
+                  Open Download Page (VidVault MKV)
                 </>
               ) : (
                 <>

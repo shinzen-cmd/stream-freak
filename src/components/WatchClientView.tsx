@@ -30,6 +30,7 @@ import DownloadModal from "@/components/DownloadModal";
 import { useWatchlist } from "@/context/WatchlistContext";
 import { useAuth } from "@/context/AuthContext";
 import { getZokoAnimeDownloadUrl } from "@/lib/getAnimeStream";
+import { getVidVaultDownloadUrl } from "@/lib/playerSources";
 
 interface WatchClientViewProps {
   initialData: MediaDetail;
@@ -195,19 +196,17 @@ export default function WatchClientView({
         return;
       }
 
-      // Fallback: Resolve via stream API
-      const res = await fetch(
-        `/api/stream/resolve?mediaType=${initialData.mediaType}&id=${tmdbId}&season=${currentSeason}&episode=${currentEpisode}&lang=${selectedLang}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.streamUrl) {
-          setDownloadStreamUrl(data.streamUrl);
-          setDownloadRawUrl(data.streamUrl);
-          setShowDownloadModal(true);
-          return;
-        }
-      }
+      const vidVaultUrl = getVidVaultDownloadUrl({
+        mediaType: initialData.mediaType === "tv" ? "tv" : "movie",
+        tmdbId,
+        id: initialData.id,
+        season: currentSeason,
+        episode: currentEpisode,
+      });
+      setDownloadStreamUrl(vidVaultUrl);
+      setDownloadRawUrl(vidVaultUrl);
+      setShowDownloadModal(true);
+      return;
     } catch {
       // Show fallback modal
     }
@@ -695,11 +694,25 @@ export default function WatchClientView({
         rawStreamUrl={downloadRawUrl}
         onTriggerDirectDownload={() => {
           if (!downloadStreamUrl) return;
-          if (downloadStreamUrl.startsWith("https://zokoanime.video/download/")) {
-            // Open in the phone's external browser (App.openUrl fires an ACTION_VIEW intent).
-            // window.open is suppressed by the ad blocker, so it is only a web fallback.
-            import("@capacitor/browser")
-              .then(({ Browser }) => Browser.open({ url: downloadStreamUrl }))
+          if (
+            downloadStreamUrl.startsWith("https://zokoanime.video/download/") ||
+            downloadStreamUrl.startsWith("https://vidvault.to/")
+          ) {
+            import("@capacitor/core")
+              .then(async ({ Capacitor }) => {
+                if (Capacitor.isNativePlatform()) {
+                  const { Browser } = await import("@capacitor/browser");
+                  await Browser.open({ url: downloadStreamUrl });
+                  return;
+                }
+                const a = document.createElement("a");
+                a.href = downloadStreamUrl;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              })
               .catch(() => {
                 window.location.href = downloadStreamUrl;
               });
