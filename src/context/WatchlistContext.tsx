@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { MediaItem, WatchHistoryItem } from "@/types/media";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface WatchlistContextType {
   watchlist: MediaItem[];
@@ -30,37 +32,83 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const { user, loading: authLoading, canAccessMemberFeatures, openAuthGate } = useAuth();
+  const [loadedKey, setLoadedKey] = useState("");
+  const uid = user?.uid ?? "guest";
+  const wlKey = uid === "guest" ? WATCHLIST_STORAGE_KEY : `sf_watchlist_${uid}`;
+  const hiKey = uid === "guest" ? HISTORY_STORAGE_KEY : `sf_history_${uid}`;
+
   useEffect(() => {
+    if (authLoading) return;
     try {
-      const savedWatchlist = localStorage.getItem(WATCHLIST_STORAGE_KEY);
-      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
-      if (savedHistory) setContinueWatching(JSON.parse(savedHistory));
+      const savedWatchlist = localStorage.getItem(wlKey);
+      const savedHistory = localStorage.getItem(hiKey);
+      setWatchlist(savedWatchlist ? JSON.parse(savedWatchlist) : []);
+      setContinueWatching(savedHistory ? JSON.parse(savedHistory) : []);
     } catch (e) {
       console.error("Failed to parse stored watchlist/history:", e);
     } finally {
       setIsLoaded(true);
+      setLoadedKey(wlKey + hiKey);
     }
-  }, []);
+  }, [authLoading, wlKey, hiKey]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || loadedKey !== wlKey + hiKey) return;
     try {
-      localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
+      localStorage.setItem(wlKey, JSON.stringify(watchlist));
     } catch (e) {
       console.error("Failed to save watchlist:", e);
     }
-  }, [watchlist, isLoaded]);
+  }, [watchlist, isLoaded, loadedKey, wlKey, hiKey]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || loadedKey !== wlKey + hiKey) return;
     try {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(continueWatching));
+      localStorage.setItem(hiKey, JSON.stringify(continueWatching));
     } catch (e) {
       console.error("Failed to save history:", e);
     }
-  }, [continueWatching, isLoaded]);
+  }, [continueWatching, isLoaded, loadedKey, wlKey, hiKey]);
 
+
+  // -- Cloud sync (Supabase) for signed-in users --
+  const [syncedUid, setSyncedUid] = useState("");
+  useEffect(() => {
+    if (!user || loadedKey !== wlKey + hiKey || syncedUid === user.uid) return;
+    let cancelled = false;
+    supabase
+      .from("user_data")
+      .select("watchlist,history")
+      .eq("user_id", user.uid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const uniq = <T extends { id: string | number }>(a: T[]) => {
+          const seen = new Set<string>();
+          return a.filter((x) => (seen.has(String(x.id)) ? false : (seen.add(String(x.id)), true)));
+        };
+        if (data) {
+          setWatchlist((l) => uniq([...(data.watchlist ?? []), ...l]));
+          setContinueWatching((l) => uniq([...l, ...(data.history ?? [])] as any) as any);
+        }
+        setSyncedUid(user.uid);
+      });
+    return () => { cancelled = true; };
+  }, [user, loadedKey, wlKey, hiKey, syncedUid]);
+
+  useEffect(() => {
+    if (!user || syncedUid !== user.uid) return;
+    const t = setTimeout(() => {
+      supabase.from("user_data").upsert({
+        user_id: user.uid,
+        watchlist,
+        history: continueWatching,
+        updated_at: new Date().toISOString(),
+      }).then(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [watchlist, continueWatching, user, syncedUid]);
   // Global Ctrl+K / Cmd+K listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,11 +122,15 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addToWatchlist = useCallback((item: MediaItem) => {
+    if (!canAccessMemberFeatures) {
+      openAuthGate("Sign in to save titles to your Watchlist.");
+      return;
+    }
     setWatchlist((prev) => {
       if (prev.some((i) => String(i.id) === String(item.id))) return prev;
       return [item, ...prev];
     });
-  }, []);
+  }, [canAccessMemberFeatures, openAuthGate]);
 
   const removeFromWatchlist = useCallback((id: string | number) => {
     setWatchlist((prev) => prev.filter((i) => String(i.id) !== String(id)));
@@ -93,6 +145,10 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
 
   const toggleWatchlist = useCallback(
     (item: MediaItem) => {
+      if (!canAccessMemberFeatures) {
+        openAuthGate("Sign in to save titles to your Watchlist.");
+        return;
+      }
       setWatchlist((prev) => {
         const exists = prev.some((i) => String(i.id) === String(item.id));
         if (exists) {
@@ -102,7 +158,7 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
         }
       });
     },
-    []
+    [canAccessMemberFeatures, openAuthGate]
   );
 
   const updateContinueWatching = useCallback((item: WatchHistoryItem) => {

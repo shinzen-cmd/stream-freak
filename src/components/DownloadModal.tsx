@@ -14,6 +14,7 @@ import {
   Radio,
   FileVideo,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface DownloadModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export default function DownloadModal({
   rawStreamUrl,
   onTriggerDirectDownload,
 }: DownloadModalProps) {
+  const { canAccessMemberFeatures, openAuthGate } = useAuth();
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -54,7 +56,7 @@ export default function DownloadModal({
   const displayEpisode =
     mediaType === "movie"
       ? "Feature Film"
-      : `Season ${season} · Episode ${episode}${episodeTitle ? ` — "${episodeTitle}"` : ""}`;
+      : `Season ${season} · Episode ${episode}${episodeTitle ? ` - "${episodeTitle}"` : ""}`;
 
   const langLabel =
     selectedLang === "hi"
@@ -68,6 +70,7 @@ export default function DownloadModal({
       : "Original (English)";
 
   const effectiveStreamLink = rawStreamUrl || directStreamUrl || "";
+  const isZokoDownloadPage = effectiveStreamLink.startsWith("https://zokoanime.video/download/");
 
   const handleCopyLink = () => {
     if (!effectiveStreamLink) return;
@@ -77,6 +80,11 @@ export default function DownloadModal({
   };
 
   const handleStartDownload = () => {
+    if (!canAccessMemberFeatures) {
+      onClose();
+      openAuthGate("Sign in to download episodes and movies.");
+      return;
+    }
     setDownloading(true);
     if (onTriggerDirectDownload) {
       onTriggerDirectDownload();
@@ -150,24 +158,40 @@ export default function DownloadModal({
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">Direct Stream Download</h4>
-                  <p className="text-xs text-white/50">1080p Ultra High Bitrate · MP4/HLS</p>
+                  <h4 className="text-sm font-bold text-white">
+                    {isZokoDownloadPage ? "Zokoanime / Kwik Download" : "Direct Stream Download"}
+                  </h4>
+                  <p className="text-xs text-white/50">
+                    {isZokoDownloadPage
+                      ? "Opens in browser · 1080p / 720p MP4 via Kwik"
+                      : "1080p Ultra High Bitrate · MP4/HLS"}
+                  </p>
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold">
-                Fastest
+                {effectiveStreamLink ? "Ready" : "Unavailable"}
               </span>
             </div>
 
             <button
               onClick={handleStartDownload}
-              disabled={downloading}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] text-white font-bold text-xs xs:text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/30"
+              disabled={downloading || !effectiveStreamLink}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] text-white font-bold text-xs xs:text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/30"
             >
               {downloading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Preparing Download…
+                </>
+              ) : !effectiveStreamLink ? (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download Unavailable for This Title
+                </>
+              ) : isZokoDownloadPage ? (
+                <>
+                  <ExternalLink className="w-4 h-4" />
+                  Open Download Page (Zokoanime / Kwik)
                 </>
               ) : (
                 <>
@@ -195,16 +219,13 @@ export default function DownloadModal({
               <input
                 type="text"
                 readOnly
-                value={
-                  effectiveStreamLink
-                    ? effectiveStreamLink
-                    : `https://streamfreak.pro/api/stream/direct/${mediaType}/${season}/${episode}`
-                }
+                value={effectiveStreamLink || "No direct download link available"}
                 className="flex-1 px-3 py-2 rounded-lg bg-black/50 border border-white/10 text-xs text-white/70 font-mono select-all truncate outline-none"
               />
               <button
                 onClick={handleCopyLink}
-                className="px-3.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
+                disabled={!effectiveStreamLink}
+                className="px-3.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
               >
                 {copied ? (
                   <>

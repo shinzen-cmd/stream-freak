@@ -1,9 +1,14 @@
 import React from "react";
+import type { Metadata } from "next";
 import HeroBanner from "@/components/HeroBanner";
 import MediaRow from "@/components/MediaRow";
 import Link from "next/link";
 import { getTrendingAnime, getPopularAnime, getTopRatedAnime, discoverAnime, ANIME_GENRES } from "@/lib/anilist";
 import { Sparkles } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Anime",
+};
 
 export default async function AnimePage() {
   const [

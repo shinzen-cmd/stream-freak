@@ -70,10 +70,10 @@ export default function MediaDetailModal({ item, isOpen, onClose, onPlay }: Medi
 
   const mediaTypeColor =
     currentItem.mediaType === "movie"
-      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-      : currentItem.mediaType === "tv"
       ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-      : "bg-purple-500/20 text-purple-300 border-purple-500/40";
+      : currentItem.mediaType === "tv"
+      ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
+      : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 xs:p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
@@ -140,7 +140,7 @@ export default function MediaDetailModal({ item, isOpen, onClose, onPlay }: Medi
                   if (onPlay) onPlay();
                   onClose();
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs sm:text-sm shadow-xl shadow-cyan-500/25 transition-all transform hover:-translate-y-0.5"
+                className="flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs sm:text-sm shadow-xl shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>Play Now</span>

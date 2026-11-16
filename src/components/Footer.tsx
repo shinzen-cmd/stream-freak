@@ -11,7 +11,7 @@ export default function Footer() {
           {/* Brand Col */}
           <div className="md:col-span-2 space-y-3">
             <Link href="/" className="flex items-center gap-2.5">
-              <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/20">
+              <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/20">
                 <Image
                   src="/app-icon.svg"
                   alt="Stream Freak Logo"
@@ -34,27 +34,27 @@ export default function Footer() {
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">Explore</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
-                <Link href="/movies" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/movies" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Film className="w-3.5 h-3.5" /> Movies
                 </Link>
               </li>
               <li>
-                <Link href="/bollywood" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/bollywood" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5" /> Bollywood
                 </Link>
               </li>
               <li>
-                <Link href="/tv" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/tv" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Tv className="w-3.5 h-3.5" /> TV Shows
                 </Link>
               </li>
               <li>
-                <Link href="/anime" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/anime" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Clapperboard className="w-3.5 h-3.5" /> Anime
                 </Link>
               </li>
               <li>
-                <Link href="/explore" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/explore" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Compass className="w-3.5 h-3.5" /> Discover
                 </Link>
               </li>
@@ -66,17 +66,17 @@ export default function Footer() {
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">Library</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
-                <Link href="/watchlist" className="hover:text-cyan-400 transition flex items-center gap-1.5">
+                <Link href="/watchlist" className="hover:text-emerald-400 transition flex items-center gap-1.5">
                   <Bookmark className="w-3.5 h-3.5" /> My Watchlist
                 </Link>
               </li>
               <li>
-                <Link href="/watchlist" className="hover:text-cyan-400 transition">
+                <Link href="/watchlist" className="hover:text-emerald-400 transition">
                   Continue Watching
                 </Link>
               </li>
               <li>
-                <Link href="/explore?sort=vote_average.desc" className="hover:text-cyan-400 transition">
+                <Link href="/explore?sort=vote_average.desc" className="hover:text-emerald-400 transition">
                   Top Rated
                 </Link>
               </li>
@@ -86,7 +86,7 @@ export default function Footer() {
 
         <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
           <p suppressHydrationWarning>© 2026 Stream Freak. All rights reserved.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <Link href="/" className="hover:text-gray-400 transition">
               Home
             </Link>
@@ -97,6 +97,14 @@ export default function Footer() {
             <span>•</span>
             <Link href="/watchlist" className="hover:text-gray-400 transition">
               Watchlist
+            </Link>
+            <span>•</span>
+            <Link href="/privacy" className="hover:text-emerald-400 transition">
+              Privacy Policy
+            </Link>
+            <span>•</span>
+            <Link href="/terms" className="hover:text-emerald-400 transition">
+              Terms of Service
             </Link>
           </div>
         </div>

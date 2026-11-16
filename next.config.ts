@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
         async headers() {
           return [
             {
-              source: "/api/:path*",
+              source: "/api/:path((?!auth).*)",
               headers: [
                 { key: "Access-Control-Allow-Origin", value: "*" },
                 { key: "Access-Control-Allow-Methods", value: "GET, HEAD, OPTIONS, POST, PUT, DELETE" },

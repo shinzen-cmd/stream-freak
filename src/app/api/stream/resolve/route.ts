@@ -4,7 +4,7 @@ import { getAnimeStream } from "@/lib/getAnimeStream";
 import { MediaType } from "@/types/media";
 import { ResolvedDirectStreamResult, StreamSubtitleTrack, StreamAudioTrack } from "@/lib/streamResolver";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 export const runtime = "nodejs";
 
 /**
@@ -241,6 +241,9 @@ async function extractFromEmbed(targetUrl: string): Promise<{
 }
 
 export async function GET(req: NextRequest) {
+  if (process.env.NEXT_EXPORT === "true") {
+    return NextResponse.json({ status: "static_export" });
+  }
   const { searchParams } = new URL(req.url);
   const mediaType = (searchParams.get("mediaType") || "movie") as MediaType;
   const id = searchParams.get("id") || "";

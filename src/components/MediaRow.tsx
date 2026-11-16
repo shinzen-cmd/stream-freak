@@ -56,23 +56,23 @@ export default function MediaRow({ title, subtitle, items, viewAllHref, iconName
   const renderIcon = () => {
     switch (iconName) {
       case "flame":
-        return <Flame className="w-5 h-5 text-cyan-400" />;
+        return <Flame className="w-5 h-5 text-emerald-400" />;
       case "sparkles":
-        return <Sparkles className="w-5 h-5 text-cyan-400" />;
+        return <Sparkles className="w-5 h-5 text-emerald-400" />;
       case "tv":
-        return <Tv className="w-5 h-5 text-cyan-400" />;
+        return <Tv className="w-5 h-5 text-emerald-400" />;
       case "film":
-        return <Film className="w-5 h-5 text-cyan-400" />;
+        return <Film className="w-5 h-5 text-emerald-400" />;
       case "star":
-        return <Star className="w-5 h-5 text-cyan-400" />;
+        return <Star className="w-5 h-5 text-emerald-400" />;
       case "trophy":
-        return <Trophy className="w-5 h-5 text-cyan-400" />;
+        return <Trophy className="w-5 h-5 text-emerald-400" />;
       case "calendar":
-        return <Calendar className="w-5 h-5 text-cyan-400" />;
+        return <Calendar className="w-5 h-5 text-emerald-400" />;
       case "radio":
-        return <Radio className="w-5 h-5 text-cyan-400" />;
+        return <Radio className="w-5 h-5 text-emerald-400" />;
       case "heart":
-        return <Heart className="w-5 h-5 text-cyan-400" />;
+        return <Heart className="w-5 h-5 text-emerald-400" />;
       default:
         return null;
     }
@@ -123,7 +123,7 @@ export default function MediaRow({ title, subtitle, items, viewAllHref, iconName
         {/* Left Arrow Button */}
         <button
           onClick={() => handleScroll("left")}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-full bg-black/80 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-xl backdrop-blur-md hidden sm:flex"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-full bg-black/80 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-emerald-500 hover:text-black transition-all duration-300 shadow-xl backdrop-blur-md hidden sm:flex"
           aria-label="Scroll left"
         >
           <ChevronLeft className="w-5 h-5 3xl:w-7 3xl:h-7" />
@@ -147,7 +147,7 @@ export default function MediaRow({ title, subtitle, items, viewAllHref, iconName
         {/* Right Arrow Button */}
         <button
           onClick={() => handleScroll("right")}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-full bg-black/80 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-xl backdrop-blur-md hidden sm:flex"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-full bg-black/80 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-emerald-500 hover:text-black transition-all duration-300 shadow-xl backdrop-blur-md hidden sm:flex"
           aria-label="Scroll right"
         >
           <ChevronRight className="w-5 h-5 3xl:w-7 3xl:h-7" />

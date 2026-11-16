@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 export const runtime = "nodejs";
 
 export async function OPTIONS() {
@@ -248,6 +248,9 @@ async function fetchMovieboxStream(
 }
 
 export async function GET(req: NextRequest) {
+  if (process.env.NEXT_EXPORT === "true") {
+    return NextResponse.json({ status: "static_export" });
+  }
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get("url");
   const directId = searchParams.get("tmdbId") || searchParams.get("id");
@@ -285,14 +288,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Megavid fallback embed URL
-  const fallbackTmdbId = tmdbId || "550";
-  const megavidUrl =
-    mediaType === "tv" && season && episode
-      ? `https://megavid.buzz/embed/${fallbackTmdbId}/${season}/${episode}`
-      : `https://megavid.buzz/embed/${fallbackTmdbId}`;
-
-  // If targetUrl is an explicit session-locked host, route cleanly to fallback embed
+  // If targetUrl is an explicit session-locked host, route cleanly to embed
   if (targetUrl) {
     let parsedTarget: URL | null = null;
     try {
@@ -312,9 +308,9 @@ export async function GET(req: NextRequest) {
         {
           success: true,
           useNativeEmbed: true,
-          embedUrl: targetUrl.includes("megavid.buzz") ? targetUrl : megavidUrl,
+          embedUrl: targetUrl,
           streamUrl: null,
-          provider: "Megavid Fallback Embed",
+          provider: "Session-Locked Embed",
           subtitles: [],
         },
         { headers: { "Access-Control-Allow-Origin": "*" } }
@@ -322,15 +318,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 3. Secondary Resolver (Fallback): Mount Megavid cleanly via OverlayAdBlocker
+  // 3. Secondary Resolver (Fallback): Return native embed URL
   return NextResponse.json(
     {
       success: true,
       useNativeEmbed: true,
-      embedUrl: megavidUrl,
+      embedUrl: targetUrl || "",
       streamUrl: null,
-      fallbackUrl: megavidUrl,
-      provider: "Megavid Fallback Embed",
+      fallbackUrl: targetUrl || "",
+      provider: "Native Embed",
       subtitles: [],
     },
     { headers: { "Access-Control-Allow-Origin": "*" } }

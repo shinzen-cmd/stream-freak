@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { History, Play, Trash2 } from "lucide-react";
+import { History, Play, Trash2, X } from "lucide-react";
 import { useWatchlist } from "@/context/WatchlistContext";
 
 export default function ContinueWatchingRow() {
@@ -22,7 +22,7 @@ export default function ContinueWatchingRow() {
     <section className="my-6 xs:my-8 3xl:my-12 max-w-7xl 2xl:max-w-[1536px] 3xl:max-w-[1920px] 4xl:max-w-[2400px] mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 3xl:px-12">
       <div className="flex items-center justify-between mb-3 xs:mb-4">
         <div className="flex items-center gap-2">
-          <History className="w-4 h-4 xs:w-5 xs:h-5 text-cyan-400" />
+          <History className="w-4 h-4 xs:w-5 xs:h-5 text-emerald-400" />
           <h2 className="text-lg xs:text-xl sm:text-2xl 3xl:text-3xl font-bold text-white">Continue Watching</h2>
         </div>
         <button
@@ -43,8 +43,22 @@ export default function ContinueWatchingRow() {
           return (
             <div
               key={`${item.mediaType}-${item.id}`}
-              className="group relative rounded-xl overflow-hidden glass-panel border border-white/10 hover:border-cyan-500/50 transition-all duration-300"
+              className="group relative rounded-xl overflow-hidden glass-panel border border-white/10 hover:border-emerald-500/40 transition-all duration-300"
             >
+              {/* Quick Dismiss Button (X on hover) */}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  removeFromHistory(item.id);
+                }}
+                className="absolute top-2 right-2 z-20 w-6 h-6 rounded-full bg-black/80 hover:bg-rose-600/90 text-gray-400 hover:text-white border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md touch-accessible"
+                title="Dismiss item"
+                aria-label={`Remove ${item.title} from Continue Watching`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+
               <Link href={watchUrl} className="block relative aspect-video bg-gray-900 overflow-hidden">
                 {item.backdropPath || item.posterPath ? (
                   <Image
@@ -61,7 +75,7 @@ export default function ContinueWatchingRow() {
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-10 h-10 rounded-full bg-cyan-500 text-black flex items-center justify-center shadow-lg shadow-cyan-500/40">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg shadow-emerald-500/40">
                     <Play className="w-5 h-5 fill-current ml-0.5" />
                   </div>
                 </div>
@@ -69,7 +83,7 @@ export default function ContinueWatchingRow() {
                 {/* Progress bar */}
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800">
                   <div
-                    className="h-full bg-cyan-400"
+                    className="h-full bg-emerald-500"
                     style={{ width: `${item.progressPercent || 40}%` }}
                   />
                 </div>
@@ -77,7 +91,7 @@ export default function ContinueWatchingRow() {
 
               <div className="p-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-white truncate group-hover:text-cyan-400 transition">
+                  <h4 className="text-sm font-semibold text-white truncate group-hover:text-emerald-400 transition">
                     {item.title}
                   </h4>
                   <p className="text-xs text-gray-400 truncate">

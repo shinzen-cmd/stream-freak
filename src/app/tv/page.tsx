@@ -1,9 +1,14 @@
 import React from "react";
+import type { Metadata } from "next";
 import HeroBanner from "@/components/HeroBanner";
 import MediaRow from "@/components/MediaRow";
 import Link from "next/link";
 import { getTrendingTV, getPopularTV, getTopRatedTV, getOnTheAirTV, discoverTV, getTVGenres } from "@/lib/tmdb";
 import { Tv } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "TV Shows",
+};
 
 export default async function TVShowsPage() {
   const [

@@ -90,6 +90,9 @@ export interface PlayerServer {
   name: string;
   url: string;
   quality?: string;
+  category?: string;
+  description?: string;
+  badge?: string;
 }
 
 export interface WatchHistoryItem {

@@ -78,13 +78,13 @@ export default function SearchModal() {
             }}
             className="flex items-center px-3.5 xs:px-4 py-3 xs:py-3.5 border-b border-white/10 gap-2 xs:gap-3"
           >
-            <Search className="w-5 h-5 text-cyan-400 shrink-0" />
+            <Search className="w-5 h-5 text-emerald-400 shrink-0" />
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search movies, anime, TV shows (e.g. 'Insepshun', 'Atak on titan')..."
+              placeholder="Search movies, anime, TV shows (e.g. 'Inception', 'Attack on Titan')..."
               className="w-full bg-transparent text-white placeholder-gray-400 text-base focus:outline-none"
             />
             {loading && <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />}
@@ -92,7 +92,8 @@ export default function SearchModal() {
               <button
                 type="button"
                 onClick={() => setQuery("")}
-                className="text-gray-400 hover:text-white p-1"
+                className="text-gray-400 hover:text-white p-1 transition"
+                aria-label="Clear search input"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -126,13 +127,13 @@ export default function SearchModal() {
 
           {/* Typo Suggestion Banner */}
           {suggestion && (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500/10 border-b border-cyan-500/20 text-xs text-cyan-300">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 text-xs text-emerald-300">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>Did you mean:</span>
               <button
                 type="button"
                 onClick={() => applySuggestion(suggestion)}
-                className="font-bold underline text-cyan-300 hover:text-cyan-100 transition"
+                className="font-bold underline text-emerald-300 hover:text-emerald-100 transition"
               >
                 {suggestion}
               </button>
@@ -142,14 +143,90 @@ export default function SearchModal() {
           {/* Results List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
             {query.trim() === "" ? (
-              <div className="py-12 text-center text-gray-500 flex flex-col items-center gap-2">
-                <Search className="w-8 h-8 opacity-40 text-emerald-500" />
-                <p className="text-sm text-gray-400">Search for any movie, TV show, or anime title...</p>
+              <div className="py-10 px-4 text-center flex flex-col items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Search className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Search Movies, TV Shows, and Anime</h3>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                    Type a title, actor, or genre above, or tap a trending search below to explore.
+                  </p>
+                </div>
+                <div className="w-full max-w-md pt-2">
+                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+                    Popular Searches
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {[
+                      "Inception",
+                      "Attack on Titan",
+                      "Breaking Bad",
+                      "Interstellar",
+                      "Demon Slayer",
+                      "Stranger Things",
+                      "Spirited Away",
+                      "Oppenheimer",
+                    ].map((term) => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => setQuery(term)}
+                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/15 hover:border-emerald-500/30 border border-white/5 text-xs text-gray-300 hover:text-emerald-300 transition"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : filteredResults.length === 0 && !loading ? (
-              <div className="py-12 text-center text-gray-400">
-                <p>No results found for &ldquo;{query}&rdquo;</p>
-                <p className="text-xs text-gray-500 mt-1">Try checking for spelling or searching a related word.</p>
+              <div className="py-10 px-4 text-center flex flex-col items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400">
+                  <Search className="w-6 h-6 text-gray-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    No results found for &ldquo;{query}&rdquo;
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                    We couldn&apos;t find any matches. Try checking your spelling or search with fewer words.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 max-w-md pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition shadow-sm"
+                  >
+                    Clear Search
+                  </button>
+                  {[
+                    "Trending Movies",
+                    "Top Anime",
+                    "Popular Shows",
+                  ].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        if (cat === "Top Anime") {
+                          setActiveTab("anime");
+                          setQuery("Anime");
+                        } else if (cat === "Popular Shows") {
+                          setActiveTab("tv");
+                          setQuery("Show");
+                        } else {
+                          setActiveTab("movie");
+                          setQuery("Movie");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-gray-300 hover:text-white transition"
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               filteredResults.map((item) => (
@@ -179,10 +256,10 @@ export default function SearchModal() {
                       <span
                         className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
                           item.mediaType === "movie"
-                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                            : item.mediaType === "tv"
                             ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                            : item.mediaType === "tv"
+                            ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
+                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                         }`}
                       >
                         {item.mediaType}
@@ -197,7 +274,7 @@ export default function SearchModal() {
                         </div>
                       )}
                     </div>
-                    <h4 className="text-sm font-semibold text-white truncate group-hover:text-cyan-400 transition">
+                    <h4 className="text-sm font-semibold text-white truncate group-hover:text-emerald-400 transition">
                       {item.title}
                     </h4>
                     <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{item.overview}</p>

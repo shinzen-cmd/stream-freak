@@ -30,8 +30,9 @@ function ExploreContent() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Sync state when URL params change
+  // Sync document title and state when URL params change
   useEffect(() => {
+    document.title = "Explore | Stream Freak";
     const typeParam = (searchParams.get("type") as MediaType) || "movie";
     setMediaType(typeParam);
     setGenre(searchParams.get("genre") || "");
@@ -198,7 +199,7 @@ function ExploreContent() {
             onClick={() => handleTypeChange("movie")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
               mediaType === "movie"
-                ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/20"
+                ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-bold"
                 : "text-gray-300 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -208,7 +209,7 @@ function ExploreContent() {
             onClick={() => handleTypeChange("tv")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
               mediaType === "tv"
-                ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20"
+                ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-bold"
                 : "text-gray-300 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -218,7 +219,7 @@ function ExploreContent() {
             onClick={() => handleTypeChange("anime")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
               mediaType === "anime"
-                ? "bg-purple-500 text-black shadow-md shadow-purple-500/20"
+                ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-bold"
                 : "text-gray-300 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -259,15 +260,15 @@ function ExploreContent() {
             className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">All Audio Tracks</option>
-            <option value="hi">🇮🇳 Hindi Dubbed / Spoken</option>
-            <option value="hi_orig">🇮🇳 Hindi Original (Bollywood)</option>
+            <option value="hi">Hindi Dubbed / Spoken</option>
+            <option value="hi_orig">Hindi Original (Bollywood)</option>
           </select>
         </div>
 
         {/* Sort By Selector */}
         <div>
           <label className="text-xs font-semibold text-gray-400 mb-1 block flex items-center gap-1">
-            <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400" /> Sort By:
+            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400" /> Sort By:
           </label>
           <select
             value={sortBy}

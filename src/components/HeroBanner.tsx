@@ -94,7 +94,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
               className="object-cover object-center transform scale-105"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-gray-900 via-indigo-950 to-gray-900" />
+            <div className="w-full h-full bg-gradient-to-r from-gray-900 via-gray-900 to-gray-900" />
           )}
 
           {/* Gradient overlays */}
@@ -126,14 +126,14 @@ export default function HeroBanner({ items }: HeroBannerProps) {
             )}
 
             {currentItem.totalEpisodes && (
-              <span className="text-[10px] xs:text-xs 3xl:text-sm font-semibold px-2 py-0.5 xs:px-2.5 xs:py-1 rounded-full bg-white/10 backdrop-blur-md text-purple-300 border border-white/10">
+              <span className="text-[10px] xs:text-xs 3xl:text-sm font-semibold px-2 py-0.5 xs:px-2.5 xs:py-1 rounded-full bg-white/10 backdrop-blur-md text-emerald-300 border border-white/10">
                 {currentItem.totalEpisodes} Episodes
               </span>
             )}
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl min-[360px]:text-3xl sm:text-5xl lg:text-6xl 3xl:text-7xl font-black text-white tracking-tight leading-tight drop-shadow-md line-clamp-2">
+          <h1 className="text-2xl xs:text-3xl sm:text-5xl 3xl:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-lg line-clamp-2">
             {currentItem.title}
           </h1>
 
@@ -146,7 +146,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
           <div className="flex flex-wrap items-center gap-2 xs:gap-3 pt-1 xs:pt-2">
             <Link
               href={watchUrl}
-              className="flex items-center gap-1.5 xs:gap-2 px-4 py-2.5 xs:px-5 xs:py-3 sm:px-6 sm:py-3.5 3xl:px-8 3xl:py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs xs:text-sm 3xl:text-base shadow-xl shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-200 transform hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 xs:gap-2 px-4 py-2.5 xs:px-5 xs:py-3 sm:px-6 sm:py-3.5 3xl:px-8 3xl:py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs xs:text-sm 3xl:text-base shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 transform hover:-translate-y-0.5"
             >
               <Play className="w-4 h-4 xs:w-5 xs:h-5 fill-current" />
               <span>Watch Now</span>
@@ -177,7 +177,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
               href={watchUrl}
               className="flex items-center gap-1.5 xs:gap-2 px-3 py-2.5 xs:px-4 xs:py-3 sm:px-4 sm:py-3.5 3xl:px-6 3xl:py-4 rounded-xl text-xs xs:text-sm 3xl:text-base font-medium text-gray-300 hover:text-white bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 transition"
             >
-              <Info className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-cyan-400" />
+              <Info className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-emerald-400" />
               <span>Details</span>
             </Link>
           </div>

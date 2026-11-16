@@ -1,9 +1,14 @@
 import React from "react";
+import type { Metadata } from "next";
 import HeroBanner from "@/components/HeroBanner";
 import MediaRow from "@/components/MediaRow";
 import Link from "next/link";
 import { getBollywoodMovies, getBollywoodSeries, getTopRatedBollywoodMovies, discoverMovies, getHollywoodHindiDubbedMovies } from "@/lib/tmdb";
 import { Flame, Star, Sparkles, Film, Heart } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Bollywood",
+};
 
 export default async function BollywoodPage() {
   const [
@@ -54,7 +59,7 @@ export default async function BollywoodPage() {
             href="/explore?type=movie&audio=hi"
             className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 font-bold shrink-0 transition"
           >
-            🇮🇳 Hollywood Hindi Dubbed
+            Hollywood Hindi Dubbed
           </Link>
           {bollywoodGenres.map((genre) => (
             <Link

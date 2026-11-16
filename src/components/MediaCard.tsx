@@ -21,13 +21,13 @@ export default function MediaCard({ item, priority = false, progressPercent }: M
 
   const mediaTypeColor =
     item.mediaType === "movie"
-      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-      : item.mediaType === "tv"
       ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-      : "bg-purple-500/20 text-purple-300 border-purple-500/40";
+      : item.mediaType === "tv"
+      ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
+      : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
 
   return (
-    <div className="group relative flex flex-col rounded-2xl bg-[#12151f] border border-white/5 overflow-hidden transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-cyan-500/10 hover:border-white/20">
+    <div className="group relative flex flex-col rounded-2xl bg-[#12151f] border border-white/5 overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-white/15">
       {/* Poster Image Container */}
       <Link href={watchUrl} className="relative aspect-[2/3] w-full overflow-hidden bg-gray-900 block">
         {item.posterPath ? (
@@ -45,9 +45,9 @@ export default function MediaCard({ item, priority = false, progressPercent }: M
           </div>
         )}
 
-        {/* Gradient Overlay on Hover */}
+        {/* Overlay on Hover */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full bg-cyan-500/90 text-black flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-300 shadow-lg shadow-cyan-500/40">
+          <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-300 shadow-lg shadow-emerald-500/40">
             <Play className="w-6 h-6 fill-current ml-0.5" />
           </div>
         </div>
@@ -70,7 +70,7 @@ export default function MediaCard({ item, priority = false, progressPercent }: M
         {progressPercent !== undefined && progressPercent > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800">
             <div
-              className="h-full bg-gradient-to-r from-cyan-500 to-rose-500"
+              className="h-full bg-emerald-500"
               style={{ width: `${Math.min(100, Math.max(5, progressPercent))}%` }}
             />
           </div>
@@ -81,7 +81,7 @@ export default function MediaCard({ item, priority = false, progressPercent }: M
       <div className="p-2.5 xs:p-3 flex flex-col flex-1 justify-between gap-1.5 xs:gap-2">
         <div>
           <Link href={watchUrl} className="block">
-            <h3 className="text-xs xs:text-sm font-semibold text-white line-clamp-1 group-hover:text-cyan-400 transition">
+            <h3 className="text-xs xs:text-sm font-semibold text-white line-clamp-1 group-hover:text-emerald-400 transition">
               {item.title}
             </h3>
           </Link>

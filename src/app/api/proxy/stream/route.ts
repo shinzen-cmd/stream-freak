@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 export const runtime = "nodejs";
 
 // Default spoofed headers to bypass anti-scraping and CDN protection
@@ -91,6 +91,9 @@ function rewriteM3u8Manifest(
 }
 
 export async function GET(req: NextRequest) {
+  if (process.env.NEXT_EXPORT === "true") {
+    return NextResponse.json({ status: "static_export" });
+  }
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get("url");
 

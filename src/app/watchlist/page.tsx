@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Bookmark, History, Trash2, Play, Sparkles, Film, ArrowRight } from "lucide-react";
@@ -17,6 +17,10 @@ export default function WatchlistPage() {
   } = useWatchlist();
 
   const [activeTab, setActiveTab] = useState<"watchlist" | "history">("watchlist");
+
+  useEffect(() => {
+    document.title = "Watchlist | Stream Freak";
+  }, []);
 
   return (
     <div className="max-w-7xl 2xl:max-w-[1536px] 3xl:max-w-[1920px] 4xl:max-w-[2400px] mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 3xl:px-12 pt-20 xs:pt-24 sm:pt-28 pb-20 min-h-screen">
@@ -94,8 +98,8 @@ export default function WatchlistPage() {
         <div>
           {continueWatching.length === 0 ? (
             <div className="glass-panel rounded-3xl border border-white/10 p-8 sm:p-12 text-center max-w-lg mx-auto my-8 xs:my-12">
-              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-4">
-                <History className="w-8 h-8 text-purple-400" />
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                <History className="w-8 h-8 text-emerald-400" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">No Playback History Yet</h3>
               <p className="text-sm text-gray-400 mb-6">
@@ -103,7 +107,7 @@ export default function WatchlistPage() {
               </p>
               <Link
                 href="/explore"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-500 hover:bg-purple-400 text-black font-bold text-sm shadow-lg shadow-purple-500/25 transition"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-lg shadow-emerald-500/25 transition"
               >
                 <span>Start Watching</span>
                 <ArrowRight className="w-4 h-4" />
@@ -148,7 +152,7 @@ export default function WatchlistPage() {
                         )}
 
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-12 h-12 rounded-full bg-cyan-500 text-black flex items-center justify-center shadow-lg shadow-cyan-500/40">
+                          <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg shadow-emerald-500/40">
                             <Play className="w-6 h-6 fill-current ml-0.5" />
                           </div>
                         </div>
@@ -156,7 +160,7 @@ export default function WatchlistPage() {
                         {/* Progress Bar */}
                         <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800">
                           <div
-                            className="h-full bg-gradient-to-r from-cyan-400 to-rose-500"
+                            className="h-full bg-emerald-500"
                             style={{ width: `${item.progressPercent || 50}%` }}
                           />
                         </div>
@@ -167,10 +171,10 @@ export default function WatchlistPage() {
                           <span
                             className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
                               item.mediaType === "movie"
-                                ? "bg-blue-500/20 text-blue-400"
-                                : item.mediaType === "tv"
                                 ? "bg-emerald-500/20 text-emerald-400"
-                                : "bg-purple-500/20 text-purple-400"
+                                : item.mediaType === "tv"
+                                ? "bg-teal-500/20 text-teal-400"
+                                : "bg-emerald-500/20 text-emerald-300"
                             }`}
                           >
                             {item.mediaType}

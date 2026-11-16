@@ -7,6 +7,7 @@ import { Film, ArrowLeft, Loader2 } from "lucide-react";
 import { getMediaDetails } from "@/lib/mediaService";
 import { MediaDetail, MediaType } from "@/types/media";
 import WatchClientView from "@/components/WatchClientView";
+import LottieErrorAnimation from "@/components/animations/LottieErrorAnimation";
 
 function WatchContent() {
   const searchParams = useSearchParams();
@@ -34,11 +35,16 @@ function WatchContent() {
     setLoading(true);
     setError(null);
 
+    document.title = "Watch | Stream Freak";
+
     getMediaDetails(rawId, rawType)
       .then((data) => {
         if (!isMounted) return;
         if (data) {
           setDetail(data);
+          if (data.title) {
+            document.title = `${data.title} | Stream Freak`;
+          }
           setError(null);
         } else {
           setError("Media details not found");
@@ -68,17 +74,20 @@ function WatchContent() {
 
   if (error || !detail) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" suppressHydrationWarning>
-        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-          <Film className="w-8 h-8 text-cyan-400" />
+      <div className="min-h-[75vh] flex flex-col items-center justify-center p-6 text-center" suppressHydrationWarning>
+        <LottieErrorAnimation className="w-56 h-56 sm:w-72 sm:h-72 mb-2" />
+        <div className="max-w-md space-y-3">
+          <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+            Stream Error
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Media Stream Not Found</h1>
+          <p className="text-sm text-gray-400">
+            We couldn&apos;t find stream data or metadata for this title. It may have moved or the stream is temporarily unavailable.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">Media Title Not Found</h1>
-        <p className="text-sm text-gray-400 max-w-md mb-6">
-          We couldn&apos;t find stream data or metadata for this title. It may have been removed or the ID is invalid.
-        </p>
         <Link
           href="/explore"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500 text-black font-bold text-sm shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 transition"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-950/40 transition mt-6"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Explore</span>

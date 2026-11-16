@@ -12,8 +12,8 @@
   --breakpoint-5xl: 3840px;
 
   /* Brand colors */
-  --color-brand-cyan: #06b6d4;
-  --color-brand-purple: #8b5cf6;
+  --color-brand-emerald: #10b981;
+  --color-brand-teal: #14b8a6;
   --color-brand-rose: #f43f5e;
   --color-brand-bg: #090a0f;
   --color-brand-card: #12151f;
@@ -24,8 +24,8 @@
   --background: #090a0f;
   --foreground: #f3f4f6;
   --card-bg: #12151f;
-  --accent-cyan: #06b6d4;
-  --accent-purple: #8b5cf6;
+  --accent-emerald: #10b981;
+  --accent-teal: #14b8a6;
   --accent-rose: #f43f5e;
 
   --sat: env(safe-area-inset-top, 0px);
@@ -71,11 +71,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Accessibility Focus ─────────────────────────────────────────── */
+/* ── Accessibility & Android TV D-Pad Focus ──────────────────────── */
 *:focus-visible {
-  outline: 2px solid #06b6d4 !important;
-  outline-offset: 2px !important;
+  outline: 3px solid #10b981 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.22);
   border-radius: inherit;
+  scroll-margin: 84px;
 }
 
 /* ── Touch Optimizations ─────────────────────────────────────────── */
@@ -109,13 +111,13 @@ body {
 }
 
 /* ── Glow Helpers ────────────────────────────────────────────────── */
-.glow-cyan   { box-shadow: 0 0 30px -8px rgba(6, 182, 212, 0.4); }
-.glow-purple { box-shadow: 0 0 30px -8px rgba(139, 92, 246, 0.4); }
-.glow-rose   { box-shadow: 0 0 30px -8px rgba(244, 63, 94, 0.4); }
+.glow-cyan    { box-shadow: 0 0 30px -8px rgba(6, 182, 212, 0.4); }
+.glow-emerald { box-shadow: 0 0 30px -8px rgba(16, 185, 129, 0.4); }
+.glow-rose    { box-shadow: 0 0 30px -8px rgba(244, 63, 94, 0.4); }
 
 /* ── Gradient Text ───────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+  background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -172,14 +174,28 @@ body {
 }
 .animate-spin { animation: spin 0.9s linear infinite; }
 
-/* ── Card Hover Lift ─────────────────────────────────────────────── */
+/* ── Card Hover Lift (subtle scale + shadow, no glow) ─────────────── */
 .card-hover {
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 .card-hover:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.6), 0 0 30px -10px rgba(6, 182, 212, 0.15);
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.75);
   border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Smooth Route Fade Transition ────────────────────────────────── */
+@keyframes pageFade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-page-fade {
+  animation: pageFade 0.22s ease-out forwards;
 }
 
 /* ── Image Performance ───────────────────────────────────────────── */

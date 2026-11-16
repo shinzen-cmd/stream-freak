@@ -31,7 +31,7 @@ export interface AnimeStreamResult {
   outro?: { start: number; end: number };
   embedUrl: string;
   downloadUrl?: string | null;
-  fallbackEmbeds: Array<{ id: string; name: string; url: string; quality?: string }>;
+  fallbackEmbeds: Array<{ id: string; name: string; url: string; quality?: string; category?: string; description?: string; badge?: string }>;
 }
 
 const WORKERS = [
@@ -141,9 +141,27 @@ function isValidId(val: unknown): boolean {
   return s !== "" && s !== "undefined" && s !== "null" && s !== "0";
 }
 
+/**
+ * Builds the Zokoanime download page URL for an anime episode.
+ */
+export function getZokoAnimeDownloadUrl(params: {
+  anilistId: string | number;
+  malId?: string | number | null;
+  episodeNumber?: number;
+  audioMode?: "sub" | "dub";
+}): string {
+  const cleanAniId = String(params.anilistId).replace("anime-", "").trim();
+  const ep = params.episodeNumber || 1;
+  const cleanMalId = isValidId(params.malId) ? String(params.malId!).replace("anime-", "").trim() : null;
+  const zokoSource = cleanMalId ? "mal" : "ani";
+  const zokoId = cleanMalId || cleanAniId;
+  const audioSuffix = params.audioMode === "dub" ? "dub" : "sub";
+  return `https://zokoanime.video/download/${zokoSource}/${zokoId}/${ep}/${audioSuffix}`;
+}
+
 export function getAnimeEmbedMirrors(
   params: AnimeStreamParams
-): Array<{ id: string; name: string; url: string; quality?: string }> {
+): Array<{ id: string; name: string; url: string; quality?: string; category?: string; description?: string; badge?: string }> {
   const cleanAniId = String(params.anilistId).replace("anime-", "").trim();
   const ep = params.episodeNumber || 1;
   const hasMalId = isValidId(params.malId);
@@ -151,32 +169,19 @@ export function getAnimeEmbedMirrors(
   const primaryId = cleanMalId || cleanAniId;
   const audioSuffix = params.audioMode === "dub" ? "dub" : "sub";
 
-  const sVidSrcMe = cleanMalId
-    ? `https://vidsrc.me/embed/anime?mal=${cleanMalId}&episode=${ep}`
-    : `https://vidsrc.me/embed/anime?anilist=${cleanAniId}&episode=${ep}`;
+  const zokoSource = cleanMalId ? "mal" : "ani";
+  const zokoId = cleanMalId || cleanAniId;
 
-  const sVidSrcPm = cleanMalId
-    ? `https://vidsrc.pm/embed/anime/${cleanMalId}/${ep}`
-    : `https://vidsrc.pm/embed/anime/${cleanAniId}/${ep}`;
-
-  const sVidSrcSu = cleanMalId
-    ? `https://vidsrc.su/embed/anime/${cleanMalId}/${ep}`
-    : `https://vidsrc.su/embed/anime/${cleanAniId}/${ep}`;
-
-  const sMultiEmbed = `https://multiembed.mov/?video_id=${primaryId}&is_anime=1&s=1&e=${ep}`;
-  const s2Embed = `https://2embed.cc/embedtv/${cleanAniId}&s=1&e=${ep}`;
-
-  const sVidLink = cleanMalId
-    ? `https://vidlink.pro/anime/${cleanMalId}/${ep}/${audioSuffix}`
-    : `https://vidlink.pro/anime/${cleanAniId}/${ep}/${audioSuffix}`;
+  // Primary Zokoanime + VidNest + VidSrc CC auto-embed fallback
+  const s1 = `https://zokoanime.video/stream/${zokoSource}/${zokoId}/${ep}/${audioSuffix}?color=10b981&asi=1&autonext=1&autoplay=1`;
+  const s2 = `https://vidnest.fun/anime/${cleanAniId}/${ep}/${audioSuffix}`;
+  const s3 = `https://vidsrc.cc/v2/embed/anime/ani${cleanAniId}/${ep}/${audioSuffix}`;
 
   return [
-    { id: "s1", name: "Server 1", url: `https://vidnest.fun/anime/${cleanAniId}/${ep}/${audioSuffix}` },
-    { id: "s2", name: "Server 2", url: `https://vidnest.fun/animepahe/${cleanAniId}/${ep}/${audioSuffix}` },
-    { id: "s3", name: "Server 3", url: cleanMalId ? `https://vidsrc.me/embed/anime?mal=${cleanMalId}&episode=${ep}` : `https://vidsrc.me/embed/anime?anilist=${cleanAniId}&episode=${ep}` },
-    { id: "s4", name: "Server 4", url: `https://vidlink.pro/anime/${cleanMalId || cleanAniId}/${ep}/${audioSuffix}` },
-  ];
-}
+    { id: "s1", name: "Server 1", url: s1, quality: "1080p", description: "Zokoanime Primary" },
+    { id: "s2", name: "Server 2", url: s2, quality: "1080p", description: "VidNest Backup" },
+    { id: "s3", name: "Server 3", url: s3, quality: "HD", description: "VidSrc CC Fallback" },
+  ];}
 
 const streamCache = new Map<string, { data: AnimeStreamResult; expiresAt: number }>();
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -194,54 +199,7 @@ export async function getAnimeStream(params: AnimeStreamParams): Promise<AnimeSt
 
   const fallbackEmbeds = getAnimeEmbedMirrors(params);
 
-  async function resolveMegaVid(
-    malId: string | number,
-    episode: number,
-    audioMode: "sub" | "dub" = "sub"
-  ): Promise<string | null> {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      const targetUrl = `https://megavid.buzz/mal/${malId}/${episode}/${audioMode}/source`;
-      const isBrowser = typeof window !== "undefined";
-      const fetchUrl = isBrowser
-        ? `/api/proxy/stream?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent("https://zorotv.ba/")}`
-        : targetUrl;
-
-      const headers: HeadersInit = isBrowser
-        ? {}
-        : {
-            Referer: "https://zorotv.ba/",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          };
-
-      const res = await fetch(fetchUrl, {
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      if (
-        data &&
-        data.status === "ok" &&
-        typeof data.source === "string" &&
-        data.source.includes(".m3u8")
-      ) {
-        return data.source;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  // MegaVid / Zorotv are session-locked with token validation; route to embed mirrors
+  // High-reliability embed mirror gateway
   const quickResult: AnimeStreamResult = {
     success: true,
     provider: "Embed Mirror Gateway",

@@ -11,8 +11,9 @@
  * Mount this component once inside the root layout (client-side only).
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { isTvDevice } from "@/lib/device";
 
 export default function CapacitorBackHandler({
   isPlayerOpen = false,
@@ -21,11 +22,14 @@ export default function CapacitorBackHandler({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const lastBackPressRef = useRef<number>(0);
+  const [showExitHint, setShowExitHint] = useState(false);
 
   // --- Back Button ---
   useEffect(() => {
     let App: any = null;
     let backListener: any = null;
+    let hintTimer: NodeJS.Timeout | null = null;
 
     const setup = async () => {
       try {
@@ -36,7 +40,26 @@ export default function CapacitorBackHandler({
         App = CapApp;
 
         backListener = await CapApp.addListener("backButton", ({ canGoBack }) => {
-          // If we're on the root home screen, exit the app
+          // 1. If in fullscreen, exit fullscreen instead of leaving the page
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+            return;
+          }
+
+          // 2. On the watch page, require a double-tap within 2s so accidental back taps don't exit playback
+          if (pathname.startsWith("/watch")) {
+            const now = Date.now();
+            if (now - lastBackPressRef.current > 2000) {
+              lastBackPressRef.current = now;
+              setShowExitHint(true);
+              if (hintTimer) clearTimeout(hintTimer);
+              hintTimer = setTimeout(() => setShowExitHint(false), 2000);
+              return;
+            }
+            setShowExitHint(false);
+          }
+
+          // 3. If we're on the root home screen, exit the app
           if (pathname === "/" && !canGoBack) {
             CapApp.exitApp();
             return;
@@ -53,6 +76,7 @@ export default function CapacitorBackHandler({
 
     return () => {
       backListener?.remove?.();
+      if (hintTimer) clearTimeout(hintTimer);
     };
   }, [pathname, router]);
 
@@ -61,6 +85,8 @@ export default function CapacitorBackHandler({
     let orientationPlugin: any = null;
 
     const handleFullscreenOrientation = async () => {
+      // Android TV stays in landscape; never lock TVs to portrait orientation
+      if (isTvDevice()) return;
       const isFullscreen = !!document.fullscreenElement;
       
       // 1. If running inside Capacitor mobile app
@@ -106,5 +132,11 @@ export default function CapacitorBackHandler({
     };
   }, []);
 
-  return null;
+  if (!showExitHint) return null;
+
+  return (
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-full bg-black/90 border border-white/15 text-white text-xs font-medium shadow-2xl backdrop-blur-md pointer-events-none">
+      Press back again to leave player
+    </div>
+  );
 }
