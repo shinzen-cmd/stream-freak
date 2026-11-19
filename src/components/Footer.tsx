@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { PlaySquare, Film, Tv, Clapperboard, Compass, Bookmark, Flame } from "lucide-react";
+import { PlaySquare, Film, Tv, Clapperboard, Compass, Bookmark, Flame, Mail } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -80,6 +80,11 @@ export default function Footer() {
                   Top Rated
                 </Link>
               </li>
+              <li>
+                <Link href="/contact" className="hover:text-emerald-400 transition flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-emerald-400" /> Contact &amp; Suggestions
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
@@ -97,6 +102,10 @@ export default function Footer() {
             <span>•</span>
             <Link href="/watchlist" className="hover:text-gray-400 transition">
               Watchlist
+            </Link>
+            <span>•</span>
+            <Link href="/contact" className="hover:text-emerald-400 transition">
+              Contact
             </Link>
             <span>•</span>
             <Link href="/privacy" className="hover:text-emerald-400 transition">

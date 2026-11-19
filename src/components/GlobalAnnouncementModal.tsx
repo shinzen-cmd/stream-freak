@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AppNotification, fetchActiveNotifications } from "@/lib/notifications";
 import NotificationPopupCard from "@/components/NotificationPopupCard";
 
@@ -30,6 +30,7 @@ function markDismissed(id: string) {
 
 export default function GlobalAnnouncementModal() {
   const router = useRouter();
+  const pathname = usePathname();
   const [queue, setQueue] = useState<AppNotification[]>([]);
 
   useEffect(() => {
@@ -62,10 +63,12 @@ export default function GlobalAnnouncementModal() {
   const handleAction = useCallback(() => {
     if (!current?.cta_url) return;
     const url = current.cta_url.trim();
-    if (current.show_once) {
-      markDismissed(current.id);
+    if (current.dismissible) {
+      if (current.show_once) {
+        markDismissed(current.id);
+      }
+      setQueue((prev) => prev.slice(1));
     }
-    setQueue((prev) => prev.slice(1));
 
     if (/^https?:\/\//i.test(url)) {
       import("@capacitor/browser")
@@ -89,7 +92,8 @@ export default function GlobalAnnouncementModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [current, handleDismiss]);
 
-  if (!current) return null;
+  // Never lock admins out of /dashboard or /login when a force-update broadcast is active
+  if (!current || pathname === "/dashboard" || pathname === "/login") return null;
 
   return (
     <div

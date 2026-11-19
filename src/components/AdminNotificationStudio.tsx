@@ -139,8 +139,25 @@ const PRESETS: Array<{ label: string; build: () => NotificationFormState }> = [
       message: "We improved playback speed, added new features, and squashed bugs. Install the latest version for the best experience.",
       tone: "info",
       badge: "UPDATE",
+      cta_label: "Download Update",
+      cta_url: "",
       show_once: true,
       dismissible: true,
+    }),
+  },
+  {
+    label: "Force App Update",
+    build: () => ({
+      ...EMPTY_FORM,
+      title: "Required App Update",
+      message: "Your current version of Stream Freak is outdated. Download and install the latest update using the link below to continue using the app.",
+      tone: "urgent",
+      badge: "UPDATE REQUIRED",
+      cta_label: "Download Update",
+      cta_url: "",
+      show_once: false,
+      dismissible: false,
+      active: true,
     }),
   },
   {
@@ -275,6 +292,14 @@ export default function AdminNotificationStudio() {
     setStatusMsg(null);
     if (!form.title.trim() || !form.message.trim()) {
       setStatusMsg({ type: "err", text: "Title and message are required." });
+      return;
+    }
+    if (!form.dismissible && !form.cta_url.trim()) {
+      setShowAdvanced(true);
+      setStatusMsg({
+        type: "err",
+        text: "Please paste an App Update / Download Link before publishing a non-dismissible lock.",
+      });
       return;
     }
 
@@ -608,12 +633,13 @@ export default function AdminNotificationStudio() {
                   </div>
                   <div>
                     <label className="text-xs text-white/45 block mb-1 flex items-center gap-1">
-                      <Link2 className="w-3 h-3" /> Button Link
+                      <Link2 className="w-3 h-3" />{" "}
+                      {!form.dismissible ? "App Update / Download Link (Required)" : "Button / Update Link"}
                     </label>
                     <input
                       value={form.cta_url}
                       onChange={(e) => setForm({ ...form, cta_url: e.target.value })}
-                      placeholder="/anime or https://..."
+                      placeholder={!form.dismissible ? "https://your-apk-download-link..." : "/anime or https://..."}
                       className={inputCls}
                     />
                   </div>
@@ -681,10 +707,17 @@ export default function AdminNotificationStudio() {
               }
             />
             <ToggleSwitch
-              checked={form.dismissible}
-              onChange={(v) => setForm({ ...form, dismissible: v })}
-              label="Dismissible"
-              hint={form.dismissible ? "Users can close" : "Blocks until action"}
+              checked={!form.dismissible}
+              onChange={(v) => {
+                setForm({
+                  ...form,
+                  dismissible: !v,
+                  show_once: v ? false : form.show_once,
+                });
+                if (v) setShowAdvanced(true);
+              }}
+              label="Force Update Lock"
+              hint={!form.dismissible ? "Blocks app until updated" : "Users can dismiss"}
             />
             <ToggleSwitch
               checked={form.show_once}
