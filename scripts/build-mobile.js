@@ -2,9 +2,9 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Server-only pieces (cookie auth, admin, proxy) can't live in a static export.
+// Server-only pieces (admin push API) can't live in a static export.
 const STASH = path.join(__dirname, '..', '.export-stash');
-const MOVES = [];
+const MOVES = ['src/app/api/admin'];
 function stash() { fs.mkdirSync(STASH, { recursive: true }); MOVES.forEach((m, i) => { const s = path.join(__dirname, '..', m); if (fs.existsSync(s)) fs.renameSync(s, path.join(STASH, String(i))); }); }
 function restore() { MOVES.forEach((m, i) => { const f = path.join(STASH, String(i)); const s = path.join(__dirname, '..', m); if (fs.existsSync(f)) fs.renameSync(f, s); }); fs.rmSync(STASH, { recursive: true, force: true }); }
 process.on('exit', restore);

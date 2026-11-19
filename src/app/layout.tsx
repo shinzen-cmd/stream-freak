@@ -10,6 +10,7 @@ import CapacitorBackHandler from "@/components/CapacitorBackHandler";
 import FloatingBottomNav from "@/components/FloatingBottomNav";
 import GlobalAnnouncementModal from "@/components/GlobalAnnouncementModal";
 import TvNavigationHandler from "@/components/TvNavigationHandler";
+import PushNotificationRegistrar from "@/components/PushNotificationRegistrar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -64,6 +65,7 @@ export default function RootLayout({
           {/* Handles Android hardware back button & screen orientation lock/unlock */}
           <CapacitorBackHandler />
           <TvNavigationHandler />
+          <PushNotificationRegistrar />
           <GlobalAnnouncementModal />
           <Navbar />
           <SearchModal />

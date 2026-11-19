@@ -20,7 +20,9 @@ import {
   X,
   Image as ImageIcon,
   Link2,
+  Smartphone,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import {
   AppNotification,
   NotificationInput,
@@ -220,6 +222,32 @@ export default function AdminNotificationStudio() {
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sendAndroidPush, setSendAndroidPush] = useState(false);
+  const [pushStatus, setPushStatus] = useState<{
+    loaded: boolean;
+    configured: boolean;
+    deviceCount: number;
+  }>({ loaded: false, configured: false, deviceCount: 0 });
+
+  const loadPushStatus = useCallback(async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return;
+      const res = await fetch("/api/admin/push", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as { configured?: boolean; deviceCount?: number };
+      setPushStatus({
+        loaded: true,
+        configured: Boolean(json.configured),
+        deviceCount: json.deviceCount ?? 0,
+      });
+    } catch {
+      /* ignore when running in static mobile export without server routes */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -233,7 +261,8 @@ export default function AdminNotificationStudio() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadPushStatus();
+  }, [load, loadPushStatus]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -268,18 +297,56 @@ export default function AdminNotificationStudio() {
       ? await updateNotification(editingId, payload)
       : await createNotification(payload);
 
-    setSaving(false);
     if (res.error) {
+      setSaving(false);
       setStatusMsg({ type: "err", text: res.error });
       return;
     }
 
+    let pushSummary = "";
+    if (sendAndroidPush) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        const pushRes = await fetch("/api/admin/push", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            title: payload.title,
+            message: payload.message,
+            imageUrl: payload.image_url,
+            url: payload.cta_url,
+          }),
+        });
+        const pushJson = (await pushRes.json().catch(() => ({}))) as {
+          sent?: number;
+          total?: number;
+          error?: string;
+        };
+        if (!pushRes.ok) {
+          pushSummary = ` (Android push skipped: ${pushJson.error || "not configured"})`;
+        } else if ((pushJson.total ?? 0) === 0) {
+          pushSummary = " (No Android devices registered yet)";
+        } else {
+          pushSummary = ` • Push sent to ${pushJson.sent ?? 0}/${pushJson.total ?? 0} Android phones`;
+        }
+      } catch {
+        pushSummary = " (Android push requires web dashboard on Vercel)";
+      }
+      void loadPushStatus();
+    }
+
+    setSaving(false);
     setStatusMsg({
       type: "ok",
-      text: editingId ? "Broadcast updated." : "Broadcast published to all users.",
+      text: `${editingId ? "Broadcast updated" : "Broadcast published to all users"}${pushSummary}.`,
     });
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setSendAndroidPush(false);
     load();
   };
 
@@ -594,12 +661,24 @@ export default function AdminNotificationStudio() {
           </div>
 
           {/* Behavior Toggle Switches */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <ToggleSwitch
               checked={form.active}
               onChange={(v) => setForm({ ...form, active: v })}
               label="Publish Live"
-              hint={form.active ? "Visible now" : "Saved paused"}
+              hint={form.active ? "Visible in-app now" : "Saved paused"}
+            />
+            <ToggleSwitch
+              checked={sendAndroidPush}
+              onChange={setSendAndroidPush}
+              label="Android Phone Push"
+              hint={
+                pushStatus.loaded
+                  ? pushStatus.configured
+                    ? `${pushStatus.deviceCount} phone${pushStatus.deviceCount === 1 ? "" : "s"} subscribed`
+                    : "Connect Firebase env in Vercel"
+                  : "Send via Firebase FCM"
+              }
             />
             <ToggleSwitch
               checked={form.dismissible}
@@ -614,6 +693,17 @@ export default function AdminNotificationStudio() {
               hint={form.show_once ? "Once per device" : "Every app launch"}
             />
           </div>
+
+          {sendAndroidPush && (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-200">
+              <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                {pushStatus.configured
+                  ? `Will also send a native Android push alert to ${pushStatus.deviceCount} registered phone${pushStatus.deviceCount === 1 ? "" : "s"}.`
+                  : "Firebase push will trigger once FIREBASE_SERVICE_ACCOUNT_JSON & SUPABASE_SERVICE_ROLE_KEY are set in Vercel."}
+              </span>
+            </div>
+          )}
 
           {statusMsg && (
             <div

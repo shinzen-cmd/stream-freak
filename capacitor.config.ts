@@ -17,6 +17,9 @@ const config: CapacitorConfig = {
     App: {
       // Back button behavior is handled in CapacitorBackHandler component
     },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
   },
 };
 
