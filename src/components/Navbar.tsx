@@ -6,7 +6,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Film, Tv, Clapperboard, Compass, Bookmark, Search, PlaySquare, Flame } from "lucide-react";
+import { Film, Tv, Clapperboard, Compass, Bookmark, Search, PlaySquare, Flame, Users } from "lucide-react";
 import { useWatchlist } from "@/context/WatchlistContext";
 
 export default function Navbar() {
@@ -32,6 +32,7 @@ export default function Navbar() {
     { name: "TV Shows", href: "/tv", icon: Tv },
     { name: "Anime", href: "/anime", icon: Clapperboard },
     { name: "Explore", href: "/explore", icon: Compass },
+    { name: "Party", href: "/party", icon: Users },
     { name: "Watchlist", href: "/watchlist", icon: Bookmark, badge: mounted ? watchlist.length : 0 },
   ];
 
@@ -44,28 +45,30 @@ export default function Navbar() {
       >
         <div className="max-w-7xl 2xl:max-w-[1536px] 3xl:max-w-[1920px] 4xl:max-w-[2400px] mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 3xl:px-12">
           <div className="flex items-center justify-between h-14 xs:h-16 md:h-20 3xl:h-24">
-            <div className="flex items-center gap-2 xs:gap-3 shrink-0"><ProfileMenu />
-            {/* Brand Logo */}
-            <Link href="/" className="flex items-center gap-2 xs:gap-2.5 group shrink-0">
-              <div className="relative w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 group-hover:scale-105 transition-all">
-                <Image
-                  src="/app-icon.svg"
-                  alt="Stream Freak Logo"
-                  width={48}
-                  height={48}
-                  className="w-full h-full object-cover"
-                  priority
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-base xs:text-xl 3xl:text-2xl font-extrabold tracking-tight text-white font-sans flex items-center">
-                  STREAM <span className="gradient-text ml-1">FREAK</span>
-                </span>
-                <span className="text-[8px] xs:text-[9px] 3xl:text-xs uppercase tracking-widest text-emerald-400/80 -mt-0.5 font-semibold hidden min-[340px]:inline-block">
-                  Movies • TV • Anime
-                </span>
-              </div>
-            </Link></div>
+            <div className="flex items-center gap-2 xs:gap-3 shrink-0">
+              <ProfileMenu />
+              {/* Brand Logo */}
+              <Link href="/" className="flex items-center gap-2 xs:gap-2.5 group shrink-0">
+                <div className="relative w-8 h-8 xs:w-10 xs:h-10 3xl:w-12 3xl:h-12 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 group-hover:scale-105 transition-all">
+                  <Image
+                    src="/app-icon.svg"
+                    alt="Stream Freak Logo"
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                    priority
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-base xs:text-xl 3xl:text-2xl font-extrabold tracking-tight text-white font-sans flex items-center">
+                    STREAM <span className="gradient-text ml-1">FREAK</span>
+                  </span>
+                  <span className="text-[8px] xs:text-[9px] 3xl:text-xs uppercase tracking-widest text-emerald-400/80 -mt-0.5 font-semibold hidden min-[340px]:inline-block">
+                    Movies • TV • Anime
+                  </span>
+                </div>
+              </Link>
+            </div>
 
             {/* Desktop Navigation Links */}
             <nav className="hidden md:flex items-center gap-1 lg:gap-2 3xl:gap-4">
@@ -99,6 +102,17 @@ export default function Navbar() {
 
             {/* Right Action Icons */}
             <div className="flex items-center gap-1.5 xs:gap-3">
+              <Link
+                href="/party"
+                aria-label="Watch Party"
+                className={`md:hidden flex items-center justify-center p-2 rounded-full border transition ${
+                  pathname === "/party"
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-300 hover:text-white"
+                }`}
+              >
+                <Users className="w-4 h-4 text-emerald-400" />
+              </Link>
               <InstallAppButton />
               {/* Search Trigger */}
               <button
