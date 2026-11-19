@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { apiUrl } from "@/lib/apiBase";
+import { APP_VERSION, extractRequiredVersion } from "@/lib/appVersion";
 import {
   AppNotification,
   NotificationInput,
@@ -153,7 +154,7 @@ const PRESETS: Array<{ label: string; build: () => NotificationFormState }> = [
       title: "Required App Update",
       message: "Your current version of Stream Freak is outdated. Download and install the latest update using the link below to continue using the app.",
       tone: "urgent",
-      badge: "UPDATE REQUIRED",
+      badge: "UPDATE v1.1.0",
       cta_label: "Download Update",
       cta_url: "",
       show_once: false,
@@ -727,6 +728,34 @@ export default function AdminNotificationStudio() {
               hint={form.show_once ? "Once per device" : "Every app launch"}
             />
           </div>
+
+          {!form.dismissible && (
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/25 p-3.5 flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold text-rose-200">
+                  Minimum Required APK Version
+                </label>
+                <span className="text-[11px] font-mono text-white/60">
+                  This build: v{APP_VERSION}
+                </span>
+              </div>
+              <input
+                value={extractRequiredVersion(form.badge) ?? ""}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                  setForm({
+                    ...form,
+                    badge: cleaned ? `UPDATE v${cleaned}` : "UPDATE REQUIRED",
+                  });
+                }}
+                placeholder="e.g. 1.1.0"
+                className={inputCls}
+              />
+              <p className="text-[11px] text-rose-200/75 leading-relaxed">
+                Users on older APKs below this version stay locked until they install the update. Once they install the new version (or visit on web), the popup disappears automatically.
+              </p>
+            </div>
+          )}
 
           {sendAndroidPush && (
             <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-200">

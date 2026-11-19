@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 import { AppNotification, fetchActiveNotifications } from "@/lib/notifications";
+import { APP_VERSION, extractRequiredVersion, isVersionOutdated } from "@/lib/appVersion";
 import NotificationPopupCard from "@/components/NotificationPopupCard";
 
 const DISMISSED_KEY = "sf_dismissed_notifs";
@@ -39,7 +41,21 @@ export default function GlobalAnnouncementModal() {
       .then((list) => {
         if (!active || !list.length) return;
         const dismissed = getDismissedIds();
-        const visible = list.filter((n) => !n.show_once || !dismissed.has(n.id));
+        const isNative = Capacitor.isNativePlatform();
+        const visible = list.filter((n) => {
+          if (n.show_once && dismissed.has(n.id)) return false;
+
+          // Version-gated Force Update check:
+          // - Web visitors are always on the latest build, so never lock them for an APK update.
+          // - Native APK users only see the lock if their installed APP_VERSION < requiredVersion.
+          const requiredVersion = extractRequiredVersion(n.badge) || extractRequiredVersion(n.title);
+          if (!n.dismissible && requiredVersion) {
+            if (!isNative) return false;
+            return isVersionOutdated(APP_VERSION, requiredVersion);
+          }
+
+          return true;
+        });
         setQueue(visible);
       })
       .catch(() => {
