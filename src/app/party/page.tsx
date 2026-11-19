@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { apiUrl, shareOrigin } from "@/lib/apiBase";
 import { useAuth } from "@/context/AuthContext";
 import AuthGateModal from "@/components/AuthGateModal";
 
@@ -93,7 +94,7 @@ function PartyPageInner() {
     setLoadingRoom(true);
     setError("");
 
-    fetch(`/api/party?code=${encodeURIComponent(codeParam)}`)
+    fetch(apiUrl(`/api/party?code=${encodeURIComponent(codeParam)}`))
       .then(async (res) => {
         const json = (await res.json().catch(() => ({}))) as { room?: PartyRoom; error?: string };
         if (cancelled) return;
@@ -200,7 +201,7 @@ function PartyPageInner() {
         return;
       }
 
-      const res = await fetch("/api/party", {
+      const res = await fetch(apiUrl("/api/party"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -273,7 +274,7 @@ function PartyPageInner() {
 
   const handleCopyLink = async () => {
     if (!room) return;
-    const shareUrl = `${window.location.origin}/party?code=${room.code}`;
+    const shareUrl = `${shareOrigin()}/party?code=${room.code}`;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -298,7 +299,7 @@ function PartyPageInner() {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       await channelRef.current?.send({ type: "broadcast", event: "ended", payload: {} });
-      await fetch(`/api/party?code=${encodeURIComponent(room.code)}`, {
+      await fetch(apiUrl(`/api/party?code=${encodeURIComponent(room.code)}`), {
         method: "DELETE",
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });

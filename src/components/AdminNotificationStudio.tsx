@@ -23,6 +23,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiBase";
 import {
   AppNotification,
   NotificationInput,
@@ -251,7 +252,7 @@ export default function AdminNotificationStudio() {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) return;
-      const res = await fetch("/api/admin/push", {
+      const res = await fetch(apiUrl("/api/admin/push"), {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) return;
@@ -333,7 +334,7 @@ export default function AdminNotificationStudio() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData.session?.access_token;
-        const pushRes = await fetch("/api/admin/push", {
+        const pushRes = await fetch(apiUrl("/api/admin/push"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
