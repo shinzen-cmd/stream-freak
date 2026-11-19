@@ -13,7 +13,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
@@ -78,7 +78,7 @@ export default function LoginPage() {
         setError(otpErr);
         return;
       }
-      openOtpStep("email", "We sent a 6-digit sign-in code to your email.");
+      openOtpStep("email", "We sent a verification code to your email.");
       return;
     }
 
@@ -93,8 +93,8 @@ export default function LoginPage() {
       openOtpStep(
         nextOtpType ?? "signup",
         mode === "register"
-          ? "We sent a 6-digit verification code to confirm your account."
-          : "Your email isn't verified yet. We sent a fresh 6-digit code."
+          ? "We sent a verification code to confirm your account."
+          : "Your email isn't verified yet. We sent a fresh code."
       );
       return;
     }
@@ -130,8 +130,8 @@ export default function LoginPage() {
   async function handleVerifyFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     const code = otpDigits.join("");
-    if (code.length !== OTP_LENGTH) {
-      setError("Please enter all 6 digits.");
+    if (code.length < 6) {
+      setError(`Please enter all ${OTP_LENGTH} digits.`);
       return;
     }
     await submitOtpCode(code);
@@ -217,7 +217,7 @@ export default function LoginPage() {
       setError(resendErr);
       return;
     }
-    setNotice("A new 6-digit code has been sent to your email.");
+    setNotice("A new verification code has been sent to your email.");
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
     setOtpDigits(Array(OTP_LENGTH).fill(""));
     otpInputRefs.current[0]?.focus();
@@ -265,12 +265,12 @@ export default function LoginPage() {
               </div>
               <h1 className="text-lg font-bold text-white">Check your inbox</h1>
               <p className="text-xs text-white/55 leading-relaxed">
-                Enter the 6-digit code sent to{" "}
+                Enter the {OTP_LENGTH}-digit code sent to{" "}
                 <span className="text-white font-semibold break-all">{email.trim().toLowerCase()}</span>
               </p>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
+            <div className="grid grid-cols-8 gap-1.5">
               {otpDigits.map((digit, idx) => (
                 <input
                   key={idx}
@@ -287,7 +287,7 @@ export default function LoginPage() {
                   onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                   onPaste={handleOtpPaste}
                   aria-label={`Digit ${idx + 1}`}
-                  className="w-11 h-12 sm:w-12 sm:h-13 text-center text-lg font-bold text-white bg-white/[0.05] border border-white/15 rounded-xl outline-none focus:border-emerald-400 focus:bg-emerald-500/[0.06] transition"
+                  className="w-full h-11 sm:h-12 text-center text-base sm:text-lg font-bold text-white bg-white/[0.05] border border-white/15 rounded-lg outline-none focus:border-emerald-400 focus:bg-emerald-500/[0.06] transition"
                 />
               ))}
             </div>
@@ -303,7 +303,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || otpDigits.join("").length !== OTP_LENGTH}
+              disabled={loading || otpDigits.join("").length < 6}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition disabled:opacity-50 cursor-pointer"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -322,7 +322,7 @@ export default function LoginPage() {
                   ? `Resend code in ${resendCooldown}s`
                   : resending
                   ? "Sending..."
-                  : "Resend 6-digit code"}
+                  : "Resend code"}
               </button>
               <p className="text-[11px] text-white/35 text-center">
                 Don&apos;t see it? Check Spam or Promotions in Gmail.
@@ -383,7 +383,7 @@ export default function LoginPage() {
                   }`}
                 >
                   <Mail className="w-3.5 h-3.5" />
-                  6-Digit Code
+                  Email Code
                 </button>
               </div>
             )}
@@ -423,13 +423,13 @@ export default function LoginPage() {
 
             {mode === "register" && (
               <p className="text-[11px] text-white/45 leading-relaxed -mt-1">
-                We&apos;ll send a 6-digit verification code to your email to activate your account.
+                We&apos;ll send an {OTP_LENGTH}-digit verification code to your email to activate your account.
               </p>
             )}
 
             {mode === "login" && loginMethod === "otp" && (
               <p className="text-[11px] text-white/45 leading-relaxed -mt-1">
-                No password needed — we&apos;ll email a 6-digit sign-in code directly to your inbox.
+                No password needed — we&apos;ll email an {OTP_LENGTH}-digit sign-in code directly to your inbox.
               </p>
             )}
 
@@ -441,7 +441,7 @@ export default function LoginPage() {
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition disabled:opacity-60 cursor-pointer"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {mode === "login" && loginMethod === "otp" ? "Send 6-Digit Code" : "Continue"}
+              {mode === "login" && loginMethod === "otp" ? "Send Verification Code" : "Continue"}
             </button>
 
             <div className="flex items-center gap-3 my-0.5">

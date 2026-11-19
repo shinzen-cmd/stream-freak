@@ -71,7 +71,8 @@ export async function sendLoginOtp(email: string): Promise<{ error: string | nul
 }
 
 /**
- * Verifies a 6-digit email OTP code (for either new-account confirmation or passwordless login).
+ * Verifies an email OTP code (6 or 8 digits, matching Supabase's Email OTP setting)
+ * for either new-account confirmation or passwordless login.
  */
 export async function verifyEmailOtp(
   email: string,
@@ -79,9 +80,9 @@ export async function verifyEmailOtp(
   type: EmailOtpType
 ): Promise<{ user: AuthUser | null; error: string | null }> {
   email = email.trim().toLowerCase();
-  const cleanedToken = token.replace(/\D/g, "").slice(0, 6);
-  if (cleanedToken.length !== 6) {
-    return { user: null, error: "Please enter the full 6-digit code." };
+  const cleanedToken = token.replace(/\D/g, "").slice(0, 8);
+  if (cleanedToken.length < 6) {
+    return { user: null, error: "Please enter the full verification code." };
   }
 
   const { error } = await supabase.auth.verifyOtp({
