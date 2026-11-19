@@ -57,7 +57,7 @@ async function verifyAdminCaller(req: NextRequest): Promise<{ ok: boolean; error
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "sb_publishable_qC_Q8dL3l1xZ3K648h9i2w_l8lB2l1M";
+    "sb_publishable_UV1Zg0OMppUn00rU_82isQ_C5Jb-rOs";
 
   const client = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
