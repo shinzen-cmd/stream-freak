@@ -10,22 +10,113 @@ export interface AuthUser {
 
 let socialInitialized = false;
 
+export type EmailOtpType = "signup" | "email";
+
+export interface SignInResult {
+  user: AuthUser | null;
+  error: string | null;
+  needsVerification?: boolean;
+  otpType?: EmailOtpType;
+}
+
 export async function signIn(
   email: string,
   password: string,
   mode: "login" | "register" = "login"
-): Promise<{ user: AuthUser | null; error: string | null }> {
+): Promise<SignInResult> {
   email = email.trim().toLowerCase();
   if (mode === "register") {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { user: null, error: error.message };
-    if (!data.session) return { user: null, error: "Check your email to confirm your account, then sign in." };
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return {
+        user: null,
+        error: "An account with this email already exists. Please sign in instead.",
+      };
+    }
+    if (!data.session) {
+      return { user: null, error: null, needsVerification: true, otpType: "signup" };
+    }
   } else {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { user: null, error: "Invalid credentials" };
+    if (error) {
+      const errCode = (error as { code?: string }).code;
+      if (errCode === "email_not_confirmed" || /not confirmed/i.test(error.message)) {
+        await supabase.auth.resend({ type: "signup", email });
+        return { user: null, error: null, needsVerification: true, otpType: "signup" };
+      }
+      return { user: null, error: "Invalid email or password" };
+    }
   }
   const user = await getSession();
   return { user, error: user ? null : "Sign in failed" };
+}
+
+/**
+ * Sends a 6-digit login verification code to an existing account's email.
+ */
+export async function sendLoginOtp(email: string): Promise<{ error: string | null }> {
+  email = email.trim().toLowerCase();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  });
+  if (error) {
+    if (/signups not allowed/i.test(error.message)) {
+      return { error: "No account found with this email. Create an account first." };
+    }
+    return { error: error.message };
+  }
+  return { error: null };
+}
+
+/**
+ * Verifies a 6-digit email OTP code (for either new-account confirmation or passwordless login).
+ */
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  type: EmailOtpType
+): Promise<{ user: AuthUser | null; error: string | null }> {
+  email = email.trim().toLowerCase();
+  const cleanedToken = token.replace(/\D/g, "").slice(0, 6);
+  if (cleanedToken.length !== 6) {
+    return { user: null, error: "Please enter the full 6-digit code." };
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token: cleanedToken,
+    type,
+  });
+  if (error) {
+    if (/expired|invalid/i.test(error.message)) {
+      return { user: null, error: "Invalid or expired code. Please check the code or resend a new one." };
+    }
+    return { user: null, error: error.message };
+  }
+
+  const user = await getSession();
+  return { user, error: user ? null : "Verification succeeded, but session could not be loaded. Please try signing in." };
+}
+
+/**
+ * Resends a 6-digit email verification code.
+ */
+export async function resendEmailOtp(
+  email: string,
+  type: EmailOtpType
+): Promise<{ error: string | null }> {
+  email = email.trim().toLowerCase();
+  if (type === "signup") {
+    const { error } = await supabase.auth.resend({ type: "signup", email });
+    return { error: error ? error.message : null };
+  }
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  });
+  return { error: error ? error.message : null };
 }
 
 /**
