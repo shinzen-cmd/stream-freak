@@ -1,0 +1,18 @@
+name: Stream Freak Auto-Notify Drops
+
+on:
+  schedule:
+    # Runs every 3 hours (8 slots/day). The API checks your Admin Dashboard
+    # ON/OFF toggle and daily limit (2, 4, 6, or 8/day) automatically.
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger-auto-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Stream Freak Auto-Notify API
+        run: |
+          curl -sS -X POST "https://streamfreak.xyz/api/cron/auto-notify" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"

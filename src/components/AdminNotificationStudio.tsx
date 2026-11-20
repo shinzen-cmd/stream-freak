@@ -21,6 +21,9 @@ import {
   Image as ImageIcon,
   Link2,
   Smartphone,
+  Globe,
+  Zap,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { apiUrl } from "@/lib/apiBase";
@@ -28,6 +31,7 @@ import { APP_VERSION, extractRequiredVersion } from "@/lib/appVersion";
 import {
   AppNotification,
   NotificationInput,
+  NotificationTarget,
   NotificationTone,
   fetchAllNotifications,
   createNotification,
@@ -48,6 +52,7 @@ interface NotificationFormState {
   show_once: boolean;
   active: boolean;
   expires_at: string;
+  target_platform: NotificationTarget;
 }
 
 const EMPTY_FORM: NotificationFormState = {
@@ -62,6 +67,7 @@ const EMPTY_FORM: NotificationFormState = {
   show_once: true,
   active: true,
   expires_at: "",
+  target_platform: "all",
 };
 
 const TONE_OPTIONS: Array<{
@@ -246,27 +252,153 @@ export default function AdminNotificationStudio() {
     loaded: boolean;
     configured: boolean;
     deviceCount: number;
-  }>({ loaded: false, configured: false, deviceCount: 0 });
+    androidCount: number;
+    webCount: number;
+  }>({ loaded: false, configured: false, deviceCount: 0, androidCount: 0, webCount: 0 });
+
+  // Auto-Notify Daily Engine state
+  const [autoSettings, setAutoSettings] = useState<{
+    enabled: boolean;
+    max_per_day: number;
+    target_platform: NotificationTarget;
+    sentToday: number;
+    tableReady: boolean;
+    loaded: boolean;
+  }>({
+    enabled: false,
+    max_per_day: 4,
+    target_platform: "all",
+    sentToday: 0,
+    tableReady: true,
+    loaded: false,
+  });
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoTriggering, setAutoTriggering] = useState(false);
+  const [autoMsg, setAutoMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const loadPushStatus = useCallback(async () => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) return;
-      const res = await fetch(apiUrl("/api/admin/push"), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok) return;
-      const json = (await res.json()) as { configured?: boolean; deviceCount?: number };
-      setPushStatus({
-        loaded: true,
-        configured: Boolean(json.configured),
-        deviceCount: json.deviceCount ?? 0,
-      });
+      const [pushRes, autoRes] = await Promise.all([
+        fetch(apiUrl("/api/admin/push"), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        fetch(apiUrl("/api/cron/auto-notify"), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+      ]);
+      if (pushRes.ok) {
+        const json = (await pushRes.json()) as {
+          configured?: boolean;
+          deviceCount?: number;
+          androidCount?: number;
+          webCount?: number;
+        };
+        setPushStatus({
+          loaded: true,
+          configured: Boolean(json.configured),
+          deviceCount: json.deviceCount ?? 0,
+          androidCount: json.androidCount ?? 0,
+          webCount: json.webCount ?? 0,
+        });
+      }
+      if (autoRes.ok) {
+        const aJson = (await autoRes.json()) as {
+          settings?: { enabled: boolean; max_per_day: number; target_platform: NotificationTarget };
+          sentToday?: number;
+          tableReady?: boolean;
+        };
+        setAutoSettings({
+          enabled: Boolean(aJson.settings?.enabled),
+          max_per_day: aJson.settings?.max_per_day ?? 4,
+          target_platform: aJson.settings?.target_platform ?? "all",
+          sentToday: aJson.sentToday ?? 0,
+          tableReady: aJson.tableReady !== false,
+          loaded: true,
+        });
+      }
     } catch {
-      /* ignore when running in static mobile export without server routes */
+      /* ignore */
     }
   }, []);
+
+  const saveAutoSettings = async (patch: {
+    enabled?: boolean;
+    max_per_day?: number;
+    target_platform?: NotificationTarget;
+  }) => {
+    const next = {
+      enabled: patch.enabled ?? autoSettings.enabled,
+      max_per_day: patch.max_per_day ?? autoSettings.max_per_day,
+      target_platform: patch.target_platform ?? autoSettings.target_platform,
+    };
+    setAutoSettings((prev) => ({ ...prev, ...next }));
+    setAutoSaving(true);
+    setAutoMsg(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const res = await fetch(apiUrl("/api/cron/auto-notify"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(next),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setAutoMsg({ type: "err", text: json.error || "Could not save auto-drop settings." });
+      } else {
+        setAutoMsg({ type: "ok", text: "Auto-drop settings saved." });
+      }
+    } catch {
+      setAutoMsg({ type: "err", text: "Network error saving settings." });
+    } finally {
+      setAutoSaving(false);
+    }
+  };
+
+  const triggerAutoDropNow = async () => {
+    setAutoTriggering(true);
+    setAutoMsg(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const res = await fetch(apiUrl("/api/cron/auto-notify"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ force: true }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        drop?: { title?: string };
+        sent?: number;
+        total?: number;
+        sentToday?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setAutoMsg({ type: "err", text: json.error || "Could not send auto-drop." });
+      } else {
+        setAutoMsg({
+          type: "ok",
+          text: `Sent "${json.drop?.title || "Trending Drop"}" to ${json.sent ?? 0}/${json.total ?? 0} devices.`,
+        });
+        if (typeof json.sentToday === "number") {
+          setAutoSettings((prev) => ({ ...prev, sentToday: json.sentToday! }));
+        }
+      }
+    } catch {
+      setAutoMsg({ type: "err", text: "Network error triggering auto-drop." });
+    } finally {
+      setAutoTriggering(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -318,6 +450,7 @@ export default function AdminNotificationStudio() {
       show_once: form.show_once,
       active: form.active,
       expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
+      target_platform: form.target_platform,
     };
 
     const res = editingId
@@ -346,6 +479,7 @@ export default function AdminNotificationStudio() {
             message: payload.message,
             imageUrl: payload.image_url,
             url: payload.cta_url,
+            target: form.target_platform,
           }),
         });
         const pushJson = (await pushRes.json().catch(() => ({}))) as {
@@ -354,14 +488,14 @@ export default function AdminNotificationStudio() {
           error?: string;
         };
         if (!pushRes.ok) {
-          pushSummary = ` (Android push skipped: ${pushJson.error || "not configured"})`;
+          pushSummary = ` (Push skipped: ${pushJson.error || "not configured"})`;
         } else if ((pushJson.total ?? 0) === 0) {
-          pushSummary = " (No Android devices registered yet)";
+          pushSummary = ` (No ${form.target_platform === "all" ? "" : form.target_platform + " "}devices subscribed yet)`;
         } else {
-          pushSummary = ` • Push sent to ${pushJson.sent ?? 0}/${pushJson.total ?? 0} Android phones`;
+          pushSummary = ` • Push sent to ${pushJson.sent ?? 0}/${pushJson.total ?? 0} devices`;
         }
       } catch {
-        pushSummary = " (Android push requires web dashboard on Vercel)";
+        pushSummary = " (Push request failed)";
       }
       void loadPushStatus();
     }
@@ -391,6 +525,7 @@ export default function AdminNotificationStudio() {
       show_once: n.show_once,
       active: asEdit ? n.active : true,
       expires_at: toLocalInputValue(n.expires_at),
+      target_platform: n.target_platform ?? "all",
     });
     if (n.image_url || n.cta_label || n.cta_url) {
       setShowAdvanced(true);
@@ -688,6 +823,35 @@ export default function AdminNotificationStudio() {
             )}
           </div>
 
+          {/* Target Platform Selector (Web vs Android App vs Both) */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-white/50">Target Platform (Popup &amp; Push)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: "all", label: "All Devices", Icon: Globe },
+                { id: "android", label: "Android App", Icon: Smartphone },
+                { id: "web", label: "Web Only", Icon: Globe },
+              ] as const).map(({ id, label, Icon }) => {
+                const active = form.target_platform === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setForm({ ...form, target_platform: id })}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                      active
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-white/[0.02] border-white/[0.08] text-white/55 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Behavior Toggle Switches */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <ToggleSwitch
@@ -699,11 +863,11 @@ export default function AdminNotificationStudio() {
             <ToggleSwitch
               checked={sendAndroidPush}
               onChange={setSendAndroidPush}
-              label="Android Phone Push"
+              label="Send Push Alert"
               hint={
                 pushStatus.loaded
                   ? pushStatus.configured
-                    ? `${pushStatus.deviceCount} phone${pushStatus.deviceCount === 1 ? "" : "s"} subscribed`
+                    ? `${pushStatus.androidCount} Android · ${pushStatus.webCount} Web`
                     : "Connect Firebase env in Vercel"
                   : "Send via Firebase FCM"
               }
@@ -957,6 +1121,112 @@ export default function AdminNotificationStudio() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Auto-Drops Daily Notification Engine */}
+      <div className="bg-[#0e1017] border border-white/[0.07] rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Auto-Drops Engine (Daily Trending Push)</h3>
+              <p className="text-xs text-white/45">
+                Automatically sends trending Movies, TV Shows, Bollywood &amp; Anime with posters and deep links.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/[0.05] border border-white/[0.08] text-white/75">
+            Sent today: {autoSettings.sentToday} / {autoSettings.max_per_day}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          <ToggleSwitch
+            checked={autoSettings.enabled}
+            onChange={(v) => void saveAutoSettings({ enabled: v })}
+            label="Auto-Drops Active"
+            hint={autoSettings.enabled ? "Scheduled pushes ON" : "Paused"}
+          />
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+              Drops Per Day
+            </span>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[2, 4, 6, 8].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  disabled={autoSaving}
+                  onClick={() => void saveAutoSettings({ max_per_day: n })}
+                  className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    autoSettings.max_per_day === n
+                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                      : "bg-white/[0.03] border-white/[0.08] text-white/55 hover:text-white"
+                  }`}
+                >
+                  {n}/day
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+              Auto-Drop Target
+            </span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([
+                { id: "all", label: "All" },
+                { id: "android", label: "App" },
+                { id: "web", label: "Web" },
+              ] as const).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={autoSaving}
+                  onClick={() => void saveAutoSettings({ target_platform: t.id })}
+                  className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    autoSettings.target_platform === t.id
+                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                      : "bg-white/[0.03] border-white/[0.08] text-white/55 hover:text-white"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
+          <p className="text-[11px] text-white/45">
+            Rotates Movie → TV → Anime → Bollywood and never repeats a title within 14 days.
+          </p>
+          <button
+            type="button"
+            onClick={() => void triggerAutoDropNow()}
+            disabled={autoTriggering}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+          >
+            {autoTriggering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+            Send 1 Auto-Drop Now
+          </button>
+        </div>
+
+        {autoMsg && (
+          <div
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-medium border ${
+              autoMsg.type === "ok"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+            }`}
+          >
+            {autoMsg.text}
           </div>
         )}
       </div>

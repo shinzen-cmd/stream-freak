@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 export type NotificationTone = "info" | "success" | "warning" | "urgent";
+export type NotificationTarget = "all" | "android" | "web";
 
 export interface AppNotification {
   id: string;
@@ -15,6 +16,7 @@ export interface AppNotification {
   show_once: boolean;
   active: boolean;
   expires_at: string | null;
+  target_platform?: NotificationTarget | null;
   created_at: string;
 }
 
@@ -59,11 +61,21 @@ export async function fetchAllNotifications(): Promise<{ data: AppNotification[]
 export async function createNotification(
   input: NotificationInput
 ): Promise<{ data: AppNotification | null; error: string | null }> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("notifications")
     .insert(input)
     .select()
     .single();
+
+  if (error && /target_platform/i.test(error.message)) {
+    const rest = { ...input };
+    delete rest.target_platform;
+    ({ data, error } = await supabase
+      .from("notifications")
+      .insert(rest)
+      .select()
+      .single());
+  }
 
   return {
     data: (data as AppNotification) ?? null,
@@ -78,10 +90,19 @@ export async function updateNotification(
   id: string,
   patch: Partial<NotificationInput>
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase
+  let { error } = await supabase
     .from("notifications")
     .update(patch)
     .eq("id", id);
+
+  if (error && /target_platform/i.test(error.message)) {
+    const rest = { ...patch };
+    delete rest.target_platform;
+    ({ error } = await supabase
+      .from("notifications")
+      .update(rest)
+      .eq("id", id));
+  }
 
   return { error: error?.message ?? null };
 }

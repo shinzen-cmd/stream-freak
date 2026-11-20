@@ -45,6 +45,11 @@ export default function GlobalAnnouncementModal() {
         const visible = list.filter((n) => {
           if (n.show_once && dismissed.has(n.id)) return false;
 
+          // Platform targeting (all / android / web)
+          const target = n.target_platform || "all";
+          if (target === "android" && !isNative) return false;
+          if (target === "web" && isNative) return false;
+
           // Version-gated Force Update check:
           // - Web visitors are always on the latest build, so never lock them for an APK update.
           // - Native APK users only see the lock if their installed APP_VERSION < requiredVersion.
