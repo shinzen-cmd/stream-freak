@@ -134,7 +134,7 @@ export async function signInWithGoogle(): Promise<{ user: AuthUser | null; error
     if (!webClientId) {
       return {
         user: null,
-        error: "Google Sign-In is not configured yet (missing NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID).",
+        error: "Google Sign-In is temporarily unavailable. Please sign in with email instead.",
       };
     }
 
@@ -154,24 +154,24 @@ export async function signInWithGoogle(): Promise<{ user: AuthUser | null; error
 
       const idToken = (res.result as { idToken?: string | null } | undefined)?.idToken;
       if (!idToken) {
-        return { user: null, error: "Google did not return an ID token." };
+        return { user: null, error: "Could not complete Google Sign-In. Please try again." };
       }
 
       const { error } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
       });
-      if (error) return { user: null, error: error.message };
+      if (error) return { user: null, error: "Google Sign-In failed. Please try again or use email." };
 
       const user = await getSession();
-      return { user, error: user ? null : "Google sign in failed" };
+      return { user, error: user ? null : "Could not complete sign in. Please try again." };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err ?? "");
       const code = (err as { code?: string } | null)?.code;
       if (code === "USER_CANCELLED" || /cancel/i.test(msg)) {
         return { user: null, error: null };
       }
-      return { user: null, error: msg || "Google sign in failed" };
+      return { user: null, error: "Google Sign-In could not be completed. Please try again." };
     }
   }
 

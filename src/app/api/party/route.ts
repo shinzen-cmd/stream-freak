@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
   const supa = getSupabaseAdmin();
   if (!supa) {
     return NextResponse.json(
-      { error: "Watch Party storage is not configured (missing SUPABASE_SERVICE_ROLE_KEY)." },
+      { error: "Watch Party is temporarily unavailable. Please try again later." },
       { status: 503 }
     );
   }
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   const hyperbeamKey = process.env.HYPERBEAM_API_KEY;
   if (!hyperbeamKey) {
     return NextResponse.json(
-      { error: "Watch Party is not configured yet (missing HYPERBEAM_API_KEY in Vercel)." },
+      { error: "Watch Party is temporarily unavailable. Please try again later." },
       { status: 503 }
     );
   }
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
   const supa = getSupabaseAdmin();
   if (!supa) {
     return NextResponse.json(
-      { error: "Watch Party storage is not configured (missing SUPABASE_SERVICE_ROLE_KEY)." },
+      { error: "Watch Party is temporarily unavailable. Please try again later." },
       { status: 503 }
     );
   }
@@ -167,9 +167,8 @@ export async function POST(req: NextRequest) {
   });
 
   if (!hbRes.ok) {
-    const errText = await hbRes.text().catch(() => "");
     return NextResponse.json(
-      { error: `Hyperbeam error (${hbRes.status}): ${errText || "Could not launch virtual room."}` },
+      { error: "Could not launch Watch Party room right now. Please try again in a moment." },
       { status: 502 }
     );
   }
@@ -182,7 +181,7 @@ export async function POST(req: NextRequest) {
 
   if (!hbData.session_id || !hbData.embed_url) {
     return NextResponse.json(
-      { error: "Hyperbeam did not return a valid session." },
+      { error: "Could not start Watch Party session. Please try again." },
       { status: 502 }
     );
   }
