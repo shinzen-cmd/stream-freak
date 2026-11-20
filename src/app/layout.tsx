@@ -27,17 +27,62 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://streamfreak.xyz"),
+  applicationName: "Stream Freak",
   title: {
-    default: "Stream Freak",
+    default: "Stream Freak — Watch Movies, TV Shows & Anime Online",
     template: "%s | Stream Freak",
   },
-  description: "Your streaming platform for Movies, TV Shows, and Anime.",
+  description:
+    "Stream Freak (streamfreak.xyz) is your all-in-one streaming platform for HD Movies, TV Shows, Bollywood, Anime, and live Watch Parties with friends.",
   manifest: "/manifest.webmanifest",
-  keywords: ["stream freak", "streaming", "movies", "tv shows", "anime", "watch online"],
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "Stream Freak",
+    "streamfreak",
+    "streamfreak.xyz",
+    "stream freak app",
+    "watch movies online",
+    "watch anime online",
+    "tv shows streaming",
+    "bollywood movies",
+    "watch party",
+  ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   openGraph: {
-    title: "Stream Freak",
-    description: "Your streaming platform for Movies, TV Shows, and Anime.",
+    title: "Stream Freak — Watch Movies, TV Shows & Anime Online",
+    description:
+      "Stream HD Movies, TV Shows, Bollywood, Anime, and host live Watch Parties with friends on Stream Freak.",
+    url: "https://streamfreak.xyz",
+    siteName: "Stream Freak",
     type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/icons/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "Stream Freak",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Stream Freak — Movies, TV Shows & Anime",
+    description:
+      "Stream HD Movies, TV Shows, Bollywood, Anime, and host live Watch Parties on Stream Freak.",
+    images: ["/icons/icon-512.png"],
   },
   icons: {
     icon: [
@@ -50,6 +95,37 @@ export const metadata: Metadata = {
   },
 };
 
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://streamfreak.xyz/#website",
+      name: "Stream Freak",
+      alternateName: ["StreamFreak", "streamfreak.xyz"],
+      url: "https://streamfreak.xyz",
+      description:
+        "Stream HD Movies, TV Shows, Bollywood, Anime, and host live Watch Parties with friends.",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "https://streamfreak.xyz/explore?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://streamfreak.xyz/#organization",
+      name: "Stream Freak",
+      url: "https://streamfreak.xyz",
+      logo: "https://streamfreak.xyz/icons/icon-512.png",
+      email: "taktshinzen@gmail.com",
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -57,6 +133,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        />
+      </head>
       <body
         className="min-h-screen bg-[#090a0f] text-gray-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-black antialiased"
         suppressHydrationWarning
