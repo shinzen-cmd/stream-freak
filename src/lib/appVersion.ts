@@ -3,7 +3,7 @@
  * Bump this before building a new APK release so Force Update notifications
  * automatically stop showing once a user installs the new version.
  */
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 
 /**
  * Extracts a semantic version like "1.1.0" or "2.0" from a notification badge/title
