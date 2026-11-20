@@ -1,13 +1,13 @@
 import { Capacitor } from "@capacitor/core";
 
 export const PRODUCTION_WEB_ORIGIN = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://streamfreak.vercel.app"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://streamfreak.xyz"
 ).replace(/\/+$/, "");
 
 /**
  * Resolves a backend API path:
  * - On Web / Vercel: uses relative "/api/..."
- * - Inside Capacitor Android APK: routes to the live Vercel backend (https://streamfreak.vercel.app)
+ * - Inside Capacitor Android APK: routes to the live backend (https://streamfreak.xyz)
  *   so Admin Push Notifications and Hyperbeam Watch Party work natively inside the app.
  */
 export function apiUrl(path: string): string {

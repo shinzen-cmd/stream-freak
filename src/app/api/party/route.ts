@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
     /* default empty */
   }
 
-  const fallbackOrigin = req.nextUrl.origin || "https://stream-freak.vercel.app";
+  const fallbackOrigin = req.nextUrl.origin || "https://streamfreak.xyz";
   const startUrl = sanitizeStartUrl(body.startUrl, fallbackOrigin);
   const title = (body.title || "").trim().slice(0, 80) || "Stream Freak Watch Party";
   const hostName = (user.email || "Host").split("@")[0].slice(0, 28);

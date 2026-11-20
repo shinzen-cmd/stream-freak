@@ -26,6 +26,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://streamfreak.xyz"),
   title: {
     default: "Stream Freak",
     template: "%s | Stream Freak",
