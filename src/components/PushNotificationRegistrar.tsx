@@ -12,6 +12,7 @@ interface ForegroundToast {
   title: string;
   body: string;
   url?: string;
+  image?: string;
 }
 
 const CHANNEL_ID = "stream_freak_general";
@@ -113,9 +114,10 @@ export default function PushNotificationRegistrar() {
           const title = notification.title || data.title || "Stream Freak";
           const body = notification.body || data.body || "";
           const url = data.url || data.cta_url;
+          const image = data.image;
           if (!title && !body) return;
 
-          setToast({ title, body, url });
+          setToast({ title, body, url, image });
           if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
           toastTimerRef.current = window.setTimeout(() => setToast(null), 6500);
         });
@@ -173,9 +175,18 @@ export default function PushNotificationRegistrar() {
           toast.url ? "cursor-pointer hover:border-emerald-400/50 transition" : ""
         }`}
       >
-        <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-          <Bell className="w-4 h-4 text-emerald-400" />
-        </div>
+        {toast.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={toast.image}
+            alt=""
+            className="w-12 h-12 rounded-xl object-cover border border-white/15 shrink-0"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4 text-emerald-400" />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-white truncate">{toast.title}</p>
           {toast.body && <p className="text-xs text-white/70 line-clamp-2 mt-0.5">{toast.body}</p>}

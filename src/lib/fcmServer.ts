@@ -256,6 +256,7 @@ export async function sendFcmPush(params: {
               title,
               body: message,
               url: clickUrl,
+              ...(imageUrl ? { image: imageUrl } : {}),
             },
             android: {
               priority: "HIGH",

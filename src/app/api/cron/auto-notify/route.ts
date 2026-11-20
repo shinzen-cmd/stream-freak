@@ -32,7 +32,8 @@ const DEFAULT_SETTINGS: AutoNotifySettings = {
   target_platform: "all",
 };
 
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY || "";
+const TMDB_KEY =
+  process.env.NEXT_PUBLIC_TMDB_API_KEY || "2bfcfcc1a3f1f3aecf5f752b9adf9c3d";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -87,9 +88,9 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
         for (const item of (json.results ?? []).slice(0, 10)) {
           if (!item.id || !item.title) continue;
           const img = item.backdrop_path
-            ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}`
+            ? `https://image.tmdb.org/t/p/w500${item.backdrop_path}`
             : item.poster_path
-            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+            ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
             : null;
           const rating = item.vote_average ? `★ ${item.vote_average.toFixed(1)} • ` : "";
           results.push({
@@ -126,9 +127,9 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
         for (const item of (json.results ?? []).slice(0, 10)) {
           if (!item.id || !item.name) continue;
           const img = item.backdrop_path
-            ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}`
+            ? `https://image.tmdb.org/t/p/w500${item.backdrop_path}`
             : item.poster_path
-            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+            ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
             : null;
           const rating = item.vote_average ? `★ ${item.vote_average.toFixed(1)} • ` : "";
           results.push({
@@ -164,9 +165,9 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
         for (const item of (json.results ?? []).slice(0, 8)) {
           if (!item.id || !item.title) continue;
           const img = item.backdrop_path
-            ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}`
+            ? `https://image.tmdb.org/t/p/w500${item.backdrop_path}`
             : item.poster_path
-            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+            ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
             : null;
           results.push({
             key: `bollywood:${item.id}`,
@@ -185,7 +186,7 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
 
   // 4. Trending Anime (AniList GraphQL — no API key needed)
   try {
-    const query = `query { Page(page: 1, perPage: 10) { media(type: ANIME, sort: TRENDING_DESC) { id title { english romaji } description bannerImage coverImage { extraLarge } averageScore } } }`;
+    const query = `query { Page(page: 1, perPage: 10) { media(type: ANIME, sort: TRENDING_DESC) { id title { english romaji } description bannerImage coverImage { large } averageScore } } }`;
     const res = await fetch("https://graphql.anilist.co", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -201,7 +202,7 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
               title?: { english?: string; romaji?: string };
               description?: string;
               bannerImage?: string;
-              coverImage?: { extraLarge?: string };
+              coverImage?: { large?: string };
               averageScore?: number;
             }>;
           };
@@ -220,7 +221,7 @@ async function fetchTrendingCandidates(): Promise<CandidateDrop[]> {
           category: "anime",
           title: `Trending Anime: ${name}`,
           message: `${score}${cleanDesc.slice(0, 120)}`,
-          imageUrl: a.bannerImage || a.coverImage?.extraLarge || null,
+          imageUrl: a.coverImage?.large || a.bannerImage || null,
           url: `/watch?id=${a.id}&type=anime&anilistId=${a.id}`,
         });
       }
