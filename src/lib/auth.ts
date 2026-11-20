@@ -124,9 +124,13 @@ export async function resendEmailOtp(
  * Signs in with Google natively via @capgo/capacitor-social-login + Supabase ID token
  * on Capacitor mobile builds, falling back to Supabase OAuth on web.
  */
+const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+  "90480745296-f5lni5ukcojijmrc7p17i4mkj13hndif.apps.googleusercontent.com";
+
 export async function signInWithGoogle(): Promise<{ user: AuthUser | null; error: string | null }> {
   if (Capacitor.isNativePlatform()) {
-    const webClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const webClientId =
+      process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
     if (!webClientId) {
       return {
         user: null,
