@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Bookmark, History, Trash2, Play, Sparkles, Film, ArrowRight } from "lucide-react";
 import { useWatchlist } from "@/context/WatchlistContext";
 import MediaCard from "@/components/MediaCard";
+import RewardsShowcase from "@/components/RewardsShowcase";
 
 export default function WatchlistPage() {
   const {
@@ -25,6 +26,8 @@ export default function WatchlistPage() {
   return (
     <div className="max-w-7xl 2xl:max-w-[1536px] 3xl:max-w-[1920px] 4xl:max-w-[2400px] mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 3xl:px-12 pt-20 xs:pt-24 sm:pt-28 pb-20 min-h-screen">
       {/* Header */}
+      <RewardsShowcase />
+
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 xs:mb-8">
         <div>
           <span className="text-xs uppercase tracking-widest text-cyan-400 font-bold flex items-center gap-1.5 mb-1">

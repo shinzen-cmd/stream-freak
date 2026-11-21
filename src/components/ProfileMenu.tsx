@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { User, LogOut, Bookmark, LayoutDashboard, Check } from "lucide-react";
+import { User, LogOut, Bookmark, LayoutDashboard, Check, Flame, Trophy } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { getLevelInfo, loadLocalRewards, syncRewardsFromCloud } from "@/lib/rewards";
 
 const CHAR_IDS = [17, 40, 246, 45627, 14, 62, 127691, 146156, 80, 73935, 40881, 138101, 5, 3, 67, 35252];
 const CACHE_KEY = "sf_avatar_catalog_v1";
@@ -41,8 +42,28 @@ export function useAvatars() {
 export default function ProfileMenu() {
   const { user, isTvDevice, logout, updateProfile } = useAuth();
   const [open, setOpen] = useState(false);
+  const [xp, setXp] = useState(0);
+  const [streak, setStreak] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const avatars = useAvatars();
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const local = loadLocalRewards(user.uid);
+    setXp(local.xp);
+    setStreak(local.streak);
+    void syncRewardsFromCloud(user.uid).then((r) => {
+      setXp(r.xp);
+      setStreak(r.streak);
+    });
+    const onUpdate = () => {
+      const latest = loadLocalRewards(user.uid);
+      setXp(latest.xp);
+      setStreak(latest.streak);
+    };
+    window.addEventListener("sf:rewards-updated", onUpdate);
+    return () => window.removeEventListener("sf:rewards-updated", onUpdate);
+  }, [user?.uid]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -78,7 +99,19 @@ export default function ProfileMenu() {
 
       {open && (
         <div className="absolute left-0 top-full mt-2 w-72 bg-[#0e1017] border border-white/15 rounded-2xl p-3 shadow-2xl z-[60]">
-          <p className="text-xs text-white/50 truncate px-1 pb-2 border-b border-white/5">{user.email}</p>
+          <div className="px-1 pb-2.5 border-b border-white/5 space-y-1.5">
+            <p className="text-xs text-white/50 truncate">{user.email}</p>
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1 font-bold text-emerald-300">
+                <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                Lv.{getLevelInfo(xp).level} {getLevelInfo(xp).title}
+              </span>
+              <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                {streak}d
+              </span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-4 gap-2 py-3">
             {avatars.map((a) => {

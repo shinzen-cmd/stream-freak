@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { MediaItem, WatchHistoryItem } from "@/types/media";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { recordWatchReward } from "@/lib/rewards";
 
 interface WatchlistContextType {
   watchlist: MediaItem[];
@@ -161,12 +162,19 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
     [canAccessMemberFeatures, openAuthGate]
   );
 
+  const rewardedSessionRef = useRef<Set<string>>(new Set());
+
   const updateContinueWatching = useCallback((item: WatchHistoryItem) => {
     setContinueWatching((prev) => {
       const filtered = prev.filter((i) => String(i.id) !== String(item.id));
       return [{ ...item, timestamp: Date.now() }, ...filtered].slice(0, 20);
     });
-  }, []);
+    const rewardKey = `${item.mediaType}:${item.id}:${item.seasonNumber ?? ""}:${item.episodeNumber ?? ""}`;
+    if (!rewardedSessionRef.current.has(rewardKey)) {
+      rewardedSessionRef.current.add(rewardKey);
+      recordWatchReward(user?.uid ?? null, item.mediaType === "anime");
+    }
+  }, [user?.uid]);
 
   const removeFromHistory = useCallback((id: string | number) => {
     setContinueWatching((prev) => prev.filter((i) => String(i.id) !== String(id)));

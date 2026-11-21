@@ -11,6 +11,7 @@ import FloatingBottomNav from "@/components/FloatingBottomNav";
 import GlobalAnnouncementModal from "@/components/GlobalAnnouncementModal";
 import TvNavigationHandler from "@/components/TvNavigationHandler";
 import PushNotificationRegistrar from "@/components/PushNotificationRegistrar";
+import MaintenanceGate from "@/components/MaintenanceGate";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -149,6 +150,7 @@ export default function RootLayout({
           <CapacitorBackHandler />
           <TvNavigationHandler />
           <PushNotificationRegistrar />
+          <MaintenanceGate />
           <GlobalAnnouncementModal />
           <Navbar />
           <SearchModal />

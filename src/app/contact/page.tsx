@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Check, Copy, ExternalLink, Mail, MessageSquarePlus, Send } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const ADMIN_EMAIL = "taktshinzen@gmail.com";
 
@@ -18,6 +19,23 @@ export default function ContactPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [savedToInbox, setSavedToInbox] = useState(false);
+
+  const saveToAdminInbox = async () => {
+    if (!message.trim()) return;
+    try {
+      const { error } = await supabase.from("user_requests").insert({
+        category,
+        sender_name: name.trim() || "Anonymous",
+        subject: subject.trim() || category,
+        message: message.trim(),
+        status: "open",
+      });
+      if (!error) setSavedToInbox(true);
+    } catch {
+      /* ignore if table not created yet */
+    }
+  };
 
   const buildEmailFields = () => {
     const cleanSubject = subject.trim()
@@ -35,14 +53,16 @@ export default function ContactPage() {
     };
   };
 
-  const handleMailtoSubmit = (e: React.FormEvent) => {
+  const handleMailtoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
+    await saveToAdminInbox();
     const { su, body } = buildEmailFields();
     window.location.href = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;
   };
 
-  const handleOpenGmail = () => {
+  const handleOpenGmail = async () => {
+    await saveToAdminInbox();
     const { su, body } = buildEmailFields();
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
       ADMIN_EMAIL
@@ -154,6 +174,12 @@ export default function ContactPage() {
             className={`${inputCls} resize-y`}
           />
         </div>
+
+        {savedToInbox && (
+          <p className="text-xs text-emerald-400 text-center font-medium">
+            Saved directly to the Stream Freak admin inbox!
+          </p>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
           <button
