@@ -342,3 +342,38 @@ export function recordPartyReward(uid: string | null, isHost: boolean): UserRewa
 
   return next;
 }
+
+export function recordAlertsOptInReward(uid: string | null): UserRewards | null {
+  if (typeof window === "undefined") return null;
+  const flagKey = `sf_alerts_xp_claimed_${uid ?? "guest"}`;
+  try {
+    if (localStorage.getItem(flagKey)) return null;
+    localStorage.setItem(flagKey, "1");
+  } catch {
+    /* ignore */
+  }
+
+  const cur = loadLocalRewards(uid);
+  const prevLvl = getLevelInfo(cur.xp).level;
+  const xpGained = 25;
+  const next: UserRewards = {
+    ...cur,
+    xp: cur.xp + xpGained,
+  };
+  next.badges = computeUnlockedBadges(next);
+  saveLocalRewards(uid, next);
+  if (uid) void pushRewardsToCloud(uid, next);
+
+  const nextLvl = getLevelInfo(next.xp);
+  emitXpToast({
+    xpGained,
+    reason: "Alerts Enabled Bonus",
+    streak: next.streak,
+    leveledUp: nextLvl.level > prevLvl,
+    level: nextLvl.level,
+    levelTitle: nextLvl.title,
+    newBadges: [],
+  });
+
+  return next;
+}

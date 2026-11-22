@@ -1,6 +1,7 @@
 "use client";
 import ProfileMenu from "@/components/ProfileMenu";
 import InstallAppButton from "@/components/InstallAppButton";
+import NotificationBellInbox from "@/components/NotificationBellInbox";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -114,6 +115,7 @@ export default function Navbar() {
                 <Users className="w-4 h-4 text-emerald-400" />
               </Link>
               <InstallAppButton />
+              <NotificationBellInbox />
               {/* Search Trigger */}
               <button
                 onClick={openSearch}
