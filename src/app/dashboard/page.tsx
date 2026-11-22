@@ -24,6 +24,10 @@ import {
   Wrench,
   TrendingUp,
   Loader2,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  Smartphone,
 } from "lucide-react";
 import { getSession, signOut, AuthUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -32,17 +36,29 @@ import { getLevelInfo } from "@/lib/rewards";
 import { DEFAULT_SITE_CONFIG, SiteConfig } from "@/lib/siteConfig";
 import AdminNotificationStudio from "@/components/AdminNotificationStudio";
 
+interface RecentWatchEntry {
+  title: string;
+  mediaType: string;
+  season?: number;
+  episode?: number;
+  timestamp?: number;
+}
+
 interface ManagedUser {
   id: string;
   email: string;
   role: string;
   banned: boolean;
   created_at: string;
+  last_active?: string | null;
+  has_push?: boolean;
+  push_platform?: string | null;
   xp: number;
   streak: number;
   watch_count: number;
   watchlist_count: number;
   special_badges: string[];
+  recent_watches?: RecentWatchEntry[];
 }
 
 interface UserRequestRow {
@@ -143,6 +159,8 @@ export default function Dashboard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive">("all");
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData>({
     users: [],
     requests: [],
@@ -242,9 +260,20 @@ export default function Dashboard() {
   if (!user) return null;
 
   const openRequestsCount = data.requests.filter((r) => r.status !== "done").length;
-  const filteredUsers = data.users.filter((u) =>
-    u.email.toLowerCase().includes(search.trim().toLowerCase())
-  );
+  const nowMs = Date.now();
+  const daysSince = (iso?: string | null) => {
+    if (!iso) return 999;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return 999;
+    return Math.floor((nowMs - t) / (86400 * 1000));
+  };
+  const filteredUsers = data.users.filter((u) => {
+    if (!u.email.toLowerCase().includes(search.trim().toLowerCase())) return false;
+    const d = daysSince(u.last_active);
+    if (userFilter === "active") return d < 1;
+    if (userFilter === "inactive") return d >= 3;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#090a0f] text-white flex pt-[calc(4.25rem+env(safe-area-inset-top,0px))] md:pt-[calc(5.25rem+env(safe-area-inset-top,0px))] pb-24">
@@ -460,19 +489,41 @@ export default function Dashboard() {
             <div className="bg-[#0e1017] border border-white/[0.07] rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-white">Member Management</h2>
+                  <h2 className="text-base font-bold text-white">Member Activity &amp; Controls</h2>
                   <p className="text-xs text-white/45">
-                    Grant exclusive VIP / Founder / Beta badges, manage roles, or suspend abusive accounts.
+                    Inspect watch activity, last seen status, grant exclusive badges, or manage access.
                   </p>
                 </div>
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 text-white/35 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by email..."
-                    className="w-full bg-white/[0.05] border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder:text-white/30 outline-none focus:border-emerald-500/50"
-                  />
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.07]">
+                    {([
+                      { id: "all", label: "All" },
+                      { id: "active", label: "Active Today" },
+                      { id: "inactive", label: "Inactive 3d+" },
+                    ] as const).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setUserFilter(f.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                          userFilter === f.id
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : "text-white/50 hover:text-white"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1 sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-white/35 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by email..."
+                      className="w-full bg-white/[0.05] border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder:text-white/30 outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -480,105 +531,168 @@ export default function Dashboard() {
                 {filteredUsers.map((u) => {
                   const lvl = getLevelInfo(u.xp);
                   const isSelf = u.id === user.uid;
+                  const inactiveDays = daysSince(u.last_active);
+                  const expanded = expandedUserId === u.id;
+                  const watches = u.recent_watches ?? [];
                   return (
                     <div
                       key={u.id}
-                      className={`rounded-xl p-3.5 border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                      className={`rounded-xl p-3.5 border flex flex-col gap-3 ${
                         u.banned
                           ? "bg-rose-500/[0.06] border-rose-500/25"
                           : "bg-white/[0.025] border-white/[0.07]"
                       }`}
                     >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-bold text-white truncate">{u.email}</span>
-                          {u.role === "admin" && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                              ADMIN
-                            </span>
-                          )}
-                          {u.banned && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300">
-                              BANNED
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
-                          <span>Lv.{lvl.level} {lvl.title} ({u.xp} XP)</span>
-                          <span>•</span>
-                          <span className="inline-flex items-center gap-1 text-amber-300">
-                            <Flame className="w-3 h-3" /> {u.streak}d
-                          </span>
-                          <span>•</span>
-                          <span>{u.watchlist_count} saved</span>
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(["vip", "founder", "beta"] as const).map((badge) => {
-                          const has = u.special_badges.includes(badge);
-                          return (
-                            <button
-                              key={badge}
-                              type="button"
-                              disabled={busyId === `${u.id}:${badge}`}
-                              onClick={() =>
-                                void runAction(
-                                  `${u.id}:${badge}`,
-                                  { action: "grant_badge", userId: u.id, badge },
-                                  has ? `Removed ${badge.toUpperCase()} badge.` : `Granted ${badge.toUpperCase()} badge!`
-                                )
-                              }
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
-                                has
-                                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                                  : "bg-white/[0.04] border-white/10 text-white/45 hover:text-white"
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold text-white truncate">{u.email}</span>
+                            {u.role === "admin" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                                ADMIN
+                              </span>
+                            )}
+                            {u.banned && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300">
+                                BANNED
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                inactiveDays < 1
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : inactiveDays < 3
+                                  ? "bg-sky-500/15 text-sky-300"
+                                  : "bg-amber-500/15 text-amber-300"
                               }`}
                             >
-                              <Crown className="w-3 h-3" />
-                              {badge.toUpperCase()}
-                            </button>
-                          );
-                        })}
+                              {inactiveDays < 1 ? "Active today" : `${inactiveDays}d inactive`}
+                            </span>
+                            {u.has_push && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/[0.07] text-white/75">
+                                <Smartphone className="w-2.5 h-2.5 text-emerald-400" />
+                                Push ON
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
+                            <span>Lv.{lvl.level} {lvl.title} ({u.xp} XP)</span>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 text-amber-300">
+                              <Flame className="w-3 h-3" /> {u.streak}d
+                            </span>
+                            <span>•</span>
+                            <span>{u.watch_count} plays</span>
+                            <span>•</span>
+                            <span>{u.watchlist_count} saved</span>
+                          </p>
+                        </div>
 
-                        {!isSelf && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busyId === `${u.id}:role`}
-                              onClick={() =>
-                                void runAction(
-                                  `${u.id}:role`,
-                                  {
-                                    action: "toggle_role",
-                                    userId: u.id,
-                                    role: u.role === "admin" ? "user" : "admin",
-                                  },
-                                  u.role === "admin" ? "Demoted to user." : "Promoted to Admin."
-                                )
-                              }
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/[0.05] hover:bg-white/10 border border-white/10 text-white/75 cursor-pointer"
-                            >
-                              {u.role === "admin" ? "Remove Admin" : "Make Admin"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyId === `${u.id}:ban`}
-                              onClick={() =>
-                                void runAction(
-                                  `${u.id}:ban`,
-                                  { action: "toggle_ban", userId: u.id, banned: !u.banned },
-                                  u.banned ? "User unbanned." : "User suspended."
-                                )
-                              }
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 cursor-pointer"
-                            >
-                              <Ban className="w-3 h-3" />
-                              {u.banned ? "Unban" : "Ban"}
-                            </button>
-                          </>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedUserId(expanded ? null : u.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 cursor-pointer"
+                          >
+                            <Activity className="w-3 h-3" />
+                            Activity
+                            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                          {(["vip", "founder", "beta"] as const).map((badge) => {
+                            const has = u.special_badges.includes(badge);
+                            return (
+                              <button
+                                key={badge}
+                                type="button"
+                                disabled={busyId === `${u.id}:${badge}`}
+                                onClick={() =>
+                                  void runAction(
+                                    `${u.id}:${badge}`,
+                                    { action: "grant_badge", userId: u.id, badge },
+                                    has ? `Removed ${badge.toUpperCase()} badge.` : `Granted ${badge.toUpperCase()} badge!`
+                                  )
+                                }
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                                  has
+                                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                    : "bg-white/[0.04] border-white/10 text-white/45 hover:text-white"
+                                }`}
+                              >
+                                <Crown className="w-3 h-3" />
+                                {badge.toUpperCase()}
+                              </button>
+                            );
+                          })}
+
+                          {!isSelf && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busyId === `${u.id}:role`}
+                                onClick={() =>
+                                  void runAction(
+                                    `${u.id}:role`,
+                                    {
+                                      action: "toggle_role",
+                                      userId: u.id,
+                                      role: u.role === "admin" ? "user" : "admin",
+                                    },
+                                    u.role === "admin" ? "Demoted to user." : "Promoted to Admin."
+                                  )
+                                }
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/[0.05] hover:bg-white/10 border border-white/10 text-white/75 cursor-pointer"
+                              >
+                                {u.role === "admin" ? "Remove Admin" : "Make Admin"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyId === `${u.id}:ban`}
+                                onClick={() =>
+                                  void runAction(
+                                    `${u.id}:ban`,
+                                    { action: "toggle_ban", userId: u.id, banned: !u.banned },
+                                    u.banned ? "User unbanned." : "User suspended."
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 cursor-pointer"
+                              >
+                                <Ban className="w-3 h-3" />
+                                {u.banned ? "Unban" : "Ban"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
+
+                      {expanded && (
+                        <div className="pt-3 border-t border-white/[0.06] flex flex-col gap-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/45">
+                            <span>Recent Watch Activity (last 5 titles)</span>
+                            <span>
+                              Joined: {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                            </span>
+                          </div>
+                          {watches.length === 0 ? (
+                            <p className="text-xs text-white/40">No synced watch history yet.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {watches.map((w, idx) => (
+                                <span
+                                  key={`${w.title}-${idx}`}
+                                  className="px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.08] text-[11px] text-white/85"
+                                >
+                                  {w.title}
+                                  {w.season ? ` S${w.season}` : ""}
+                                  {w.episode ? ` E${w.episode}` : ""}
+                                  <span className="ml-1.5 text-[10px] uppercase text-emerald-400">
+                                    {w.mediaType}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

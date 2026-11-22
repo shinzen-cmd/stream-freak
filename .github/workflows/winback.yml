@@ -1,0 +1,19 @@
+name: Stream Freak Dormant User Win-Back
+
+on:
+  schedule:
+    # Runs once daily at 14:00 UTC to gently nudge phones inactive for 3+ days
+    # (max 1 nudge per week per device)
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger-winback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Stream Freak Win-Back Push API
+        run: |
+          curl -sS -X POST "https://streamfreak.xyz/api/cron/winback" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"days": 3}'

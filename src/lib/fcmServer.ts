@@ -144,6 +144,156 @@ export async function getPushCounts(supaAdmin: SupabaseClient) {
   };
 }
 
+export async function sendFcmToTokens(params: {
+  tokens: string[];
+  title: string;
+  message: string;
+  imageUrl?: string | null;
+  url?: string | null;
+}): Promise<{
+  ok: boolean;
+  status: number;
+  error?: string;
+  sent: number;
+  failed: number;
+  total: number;
+  removed: number;
+}> {
+  const sa = loadServiceAccount();
+  if (!sa) {
+    return {
+      ok: false,
+      status: 503,
+      error: "Firebase push is not configured yet.",
+      sent: 0,
+      failed: 0,
+      total: 0,
+      removed: 0,
+    };
+  }
+
+  const supaAdmin = getSupabaseAdmin();
+  const tokens = Array.from(new Set(params.tokens.filter(Boolean)));
+  if (tokens.length === 0) {
+    return { ok: true, status: 200, sent: 0, failed: 0, total: 0, removed: 0 };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await getGoogleAccessToken(sa);
+  } catch (err) {
+    return {
+      ok: false,
+      status: 500,
+      error: err instanceof Error ? err.message : "Failed to authenticate with Firebase.",
+      sent: 0,
+      failed: 0,
+      total: tokens.length,
+      removed: 0,
+    };
+  }
+
+  const title = params.title.trim();
+  const message = params.message.trim();
+  const imageUrl = (params.imageUrl || "").trim() || undefined;
+  const clickUrl = (params.url || "").trim() || "/";
+  const absoluteLink = clickUrl.startsWith("http")
+    ? clickUrl
+    : `https://streamfreak.xyz${clickUrl.startsWith("/") ? clickUrl : `/${clickUrl}`}`;
+
+  const endpoint = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
+  let sent = 0;
+  let failed = 0;
+  const staleTokens: string[] = [];
+
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    const batch = tokens.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (deviceToken) => {
+        const payload = {
+          message: {
+            token: deviceToken,
+            notification: {
+              title,
+              body: message,
+              ...(imageUrl ? { image: imageUrl } : {}),
+            },
+            data: {
+              title,
+              body: message,
+              url: clickUrl,
+              ...(imageUrl ? { image: imageUrl } : {}),
+            },
+            android: {
+              priority: "HIGH",
+              notification: {
+                channel_id: "stream_freak_general",
+                sound: "default",
+                color: "#10b981",
+                ...(imageUrl ? { image: imageUrl } : {}),
+              },
+            },
+            webpush: {
+              fcm_options: {
+                link: absoluteLink,
+              },
+              notification: {
+                icon: "https://streamfreak.xyz/icons/icon-192.png",
+                badge: "https://streamfreak.xyz/icons/icon-192.png",
+                ...(imageUrl ? { image: imageUrl } : {}),
+              },
+            },
+          },
+        };
+
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (res.ok) {
+            sent++;
+          } else {
+            failed++;
+            const errJson = (await res.json().catch(() => null)) as {
+              error?: { status?: string; details?: Array<{ errorCode?: string }> };
+            } | null;
+            const errorCode = errJson?.error?.details?.[0]?.errorCode;
+            if (
+              errorCode === "UNREGISTERED" ||
+              errJson?.error?.status === "NOT_FOUND" ||
+              errJson?.error?.status === "INVALID_ARGUMENT"
+            ) {
+              staleTokens.push(deviceToken);
+            }
+          }
+        } catch {
+          failed++;
+        }
+      })
+    );
+  }
+
+  if (staleTokens.length > 0 && supaAdmin) {
+    await supaAdmin.from("push_tokens").delete().in("token", staleTokens);
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    sent,
+    failed,
+    total: tokens.length,
+    removed: staleTokens.length,
+  };
+}
+
 export async function sendFcmPush(params: {
   title: string;
   message: string;

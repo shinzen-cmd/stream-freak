@@ -31,12 +31,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const [profilesRes, rewardsRes, requestsRes, configRes, userDataRes] = await Promise.all([
+  const [profilesRes, rewardsRes, requestsRes, configRes, userDataRes, pushTokensRes] = await Promise.all([
     supa.from("profiles").select("id,email,role,banned,created_at").order("created_at", { ascending: false }).limit(200),
-    supa.from("user_rewards").select("user_id,xp,streak,watch_count,special_badges"),
+    supa.from("user_rewards").select("user_id,xp,streak,watch_count,special_badges,updated_at"),
     supa.from("user_requests").select("*").order("created_at", { ascending: false }).limit(100),
     supa.from("site_config").select("*").eq("id", 1).maybeSingle(),
-    supa.from("user_data").select("user_id,watchlist,history").limit(200),
+    supa.from("user_data").select("user_id,watchlist,history,updated_at").limit(200),
+    supa.from("push_tokens").select("user_id,platform,updated_at").limit(500),
   ]);
 
   // Fallback if `banned` column doesn't exist yet on profiles
@@ -50,35 +51,77 @@ export async function GET(req: NextRequest) {
     profileRows = (fallback.data ?? []).map((p) => ({ ...p, banned: false }));
   }
 
-  const rewardMap = new Map<string, { xp: number; streak: number; watch_count: number; special_badges: string[] }>();
+  const rewardMap = new Map<
+    string,
+    { xp: number; streak: number; watch_count: number; special_badges: string[]; updated_at?: string | null }
+  >();
   for (const r of rewardsRes.data ?? []) {
     rewardMap.set(String(r.user_id), {
       xp: r.xp ?? 0,
       streak: r.streak ?? 0,
       watch_count: r.watch_count ?? 0,
       special_badges: Array.isArray(r.special_badges) ? r.special_badges : [],
+      updated_at: r.updated_at ?? null,
     });
   }
 
-  // Aggregate top watched titles across all users
+  const pushMap = new Map<string, { platform: string; updated_at: string | null }>();
+  for (const pt of pushTokensRes.data ?? []) {
+    if (!pt.user_id) continue;
+    const key = String(pt.user_id);
+    const prev = pushMap.get(key);
+    if (!prev || String(pt.updated_at || "") > String(prev.updated_at || "")) {
+      pushMap.set(key, { platform: String(pt.platform || "android"), updated_at: pt.updated_at ?? null });
+    }
+  }
+
+  // Aggregate top watched titles across all users + per-user recent watches
   const titleCounts = new Map<string, { title: string; type: string; count: number }>();
   const userWatchlistCount = new Map<string, number>();
+  const userRecentWatches = new Map<
+    string,
+    Array<{ title: string; mediaType: string; season?: number; episode?: number; timestamp?: number }>
+  >();
+  const userDataUpdated = new Map<string, string | null>();
+
   for (const ud of userDataRes.data ?? []) {
+    const uid = String(ud.user_id);
     const wl = Array.isArray(ud.watchlist) ? ud.watchlist : [];
     const hi = Array.isArray(ud.history) ? ud.history : [];
-    userWatchlistCount.set(String(ud.user_id), wl.length);
+    userWatchlistCount.set(uid, wl.length);
+    userDataUpdated.set(uid, ud.updated_at ?? null);
+
+    const recent: Array<{ title: string; mediaType: string; season?: number; episode?: number; timestamp?: number }> = [];
     for (const item of hi) {
-      const t = (item as { title?: string; name?: string; type?: string })?.title ||
-        (item as { name?: string })?.name;
+      const rec = item as {
+        title?: string;
+        name?: string;
+        mediaType?: string;
+        type?: string;
+        seasonNumber?: number;
+        episodeNumber?: number;
+        timestamp?: number;
+      };
+      const t = rec?.title || rec?.name;
       if (!t) continue;
+      if (recent.length < 5) {
+        recent.push({
+          title: t,
+          mediaType: rec.mediaType || rec.type || "movie",
+          season: rec.seasonNumber,
+          episode: rec.episodeNumber,
+          timestamp: rec.timestamp,
+        });
+      }
       const key = t.toLowerCase();
       const prev = titleCounts.get(key);
       titleCounts.set(key, {
         title: t,
-        type: (item as { type?: string })?.type || "movie",
+        type: rec.mediaType || rec.type || "movie",
         count: (prev?.count ?? 0) + 1,
       });
     }
+    userRecentWatches.set(uid, recent);
   }
 
   const topWatched = Array.from(titleCounts.values())
@@ -86,18 +129,30 @@ export async function GET(req: NextRequest) {
     .slice(0, 8);
 
   const users = (profileRows ?? []).map((p) => {
-    const rw = rewardMap.get(String(p.id));
+    const uid = String(p.id);
+    const rw = rewardMap.get(uid);
+    const pt = pushMap.get(uid);
+    const candidates = [rw?.updated_at, userDataUpdated.get(uid), pt?.updated_at, p.created_at]
+      .filter((v): v is string => Boolean(v))
+      .sort()
+      .reverse();
+    const lastActive = candidates[0] ?? p.created_at ?? null;
+
     return {
       id: p.id,
       email: p.email || "(no email)",
       role: p.role || "user",
       banned: Boolean((p as { banned?: boolean }).banned),
       created_at: p.created_at,
+      last_active: lastActive,
+      has_push: Boolean(pt),
+      push_platform: pt?.platform ?? null,
       xp: rw?.xp ?? 0,
       streak: rw?.streak ?? 0,
       watch_count: rw?.watch_count ?? 0,
-      watchlist_count: userWatchlistCount.get(String(p.id)) ?? 0,
+      watchlist_count: userWatchlistCount.get(uid) ?? 0,
       special_badges: rw?.special_badges ?? [],
+      recent_watches: userRecentWatches.get(uid) ?? [],
     };
   });
 

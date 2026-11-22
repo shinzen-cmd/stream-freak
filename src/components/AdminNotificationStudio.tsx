@@ -276,6 +276,70 @@ export default function AdminNotificationStudio() {
   const [autoTriggering, setAutoTriggering] = useState(false);
   const [autoMsg, setAutoMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
+  // Dormant User Win-Back state
+  const [winbackDays, setWinbackDays] = useState(3);
+  const [dormantCount, setDormantCount] = useState<number | null>(null);
+  const [winbackSending, setWinbackSending] = useState(false);
+  const [winbackMsg, setWinbackMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const loadWinbackCount = useCallback(async (days: number) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return;
+      const res = await fetch(apiUrl(`/api/cron/winback?days=${days}`), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as { dormantCount?: number };
+      setDormantCount(json.dormantCount ?? 0);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWinbackCount(winbackDays);
+  }, [winbackDays, loadWinbackCount]);
+
+  const triggerWinbackNow = async () => {
+    setWinbackSending(true);
+    setWinbackMsg(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const res = await fetch(apiUrl("/api/cron/winback"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ days: winbackDays }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        sent?: number;
+        total?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setWinbackMsg({ type: "err", text: json.error || "Win-back failed." });
+      } else if ((json.total ?? 0) === 0) {
+        setWinbackMsg({ type: "ok", text: json.message || "No inactive devices due right now." });
+      } else {
+        setWinbackMsg({
+          type: "ok",
+          text: `Sent win-back alert to ${json.sent ?? 0}/${json.total ?? 0} inactive phones.`,
+        });
+        void loadWinbackCount(winbackDays);
+      }
+    } catch {
+      setWinbackMsg({ type: "err", text: "Network error sending win-back." });
+    } finally {
+      setWinbackSending(false);
+    }
+  };
+
   const loadPushStatus = useCallback(async () => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -1227,6 +1291,70 @@ export default function AdminNotificationStudio() {
             }`}
           >
             {autoMsg.text}
+          </div>
+        )}
+      </div>
+
+      {/* Dormant App User Win-Back Automation */}
+      <div className="bg-[#0e1017] border border-white/[0.07] rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Inactive App Win-Back Automation</h3>
+              <p className="text-xs text-white/45">
+                Automatically nudges phones that installed Stream Freak but haven&apos;t opened it recently (max 1x/week per device).
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 border border-amber-500/25 text-amber-300">
+            {dormantCount === null ? "Checking..." : `${dormantCount} inactive (${winbackDays}d+)`}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45 mr-1">
+              Inactive for:
+            </span>
+            {[2, 3, 5, 7].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setWinbackDays(d)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  winbackDays === d
+                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                    : "bg-white/[0.03] border-white/[0.08] text-white/55 hover:text-white"
+                }`}
+              >
+                {d}d+
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void triggerWinbackNow()}
+            disabled={winbackSending}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+          >
+            {winbackSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Nudge Inactive Phones Now
+          </button>
+        </div>
+
+        {winbackMsg && (
+          <div
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-medium border ${
+              winbackMsg.type === "ok"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+            }`}
+          >
+            {winbackMsg.text}
           </div>
         )}
       </div>
