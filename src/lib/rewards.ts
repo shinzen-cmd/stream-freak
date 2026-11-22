@@ -250,8 +250,25 @@ async function pushRewardsToCloud(uid: string, rewards: UserRewards) {
   }
 }
 
+export interface XpToastEvent {
+  xpGained: number;
+  reason: string;
+  streak: number;
+  leveledUp: boolean;
+  levelTitle?: string;
+  level?: number;
+  newBadges: string[];
+}
+
+function emitXpToast(detail: XpToastEvent) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<XpToastEvent>("sf:xp-earned", { detail }));
+}
+
 export function recordWatchReward(uid: string | null, isAnime: boolean): UserRewards {
   const cur = loadLocalRewards(uid);
+  const prevLvl = getLevelInfo(cur.xp).level;
+  const prevBadges = new Set<BadgeId>(cur.badges);
   const today = todayIsoDate();
   const yesterday = yesterdayIsoDate();
 
@@ -262,9 +279,10 @@ export function recordWatchReward(uid: string | null, isAnime: boolean): UserRew
     bonusXp = 15;
   }
 
+  const xpGained = 25 + bonusXp;
   const next: UserRewards = {
     ...cur,
-    xp: cur.xp + 25 + bonusXp,
+    xp: cur.xp + xpGained,
     streak,
     lastActiveDate: today,
     watchCount: cur.watchCount + 1,
@@ -273,18 +291,54 @@ export function recordWatchReward(uid: string | null, isAnime: boolean): UserRew
   next.badges = computeUnlockedBadges(next);
   saveLocalRewards(uid, next);
   if (uid) void pushRewardsToCloud(uid, next);
+
+  const nextLvl = getLevelInfo(next.xp);
+  const newBadges = next.badges
+    .filter((b) => !prevBadges.has(b))
+    .map((id) => BADGE_CATALOG.find((c) => c.id === id)?.name || id);
+
+  emitXpToast({
+    xpGained,
+    reason: bonusXp > 0 ? "Daily Streak Bonus" : isAnime ? "Anime Episode" : "Now Streaming",
+    streak: next.streak,
+    leveledUp: nextLvl.level > prevLvl,
+    level: nextLvl.level,
+    levelTitle: nextLvl.title,
+    newBadges,
+  });
+
   return next;
 }
 
 export function recordPartyReward(uid: string | null, isHost: boolean): UserRewards {
   const cur = loadLocalRewards(uid);
+  const prevLvl = getLevelInfo(cur.xp).level;
+  const prevBadges = new Set<BadgeId>(cur.badges);
+  const xpGained = isHost ? 30 : 15;
+
   const next: UserRewards = {
     ...cur,
-    xp: cur.xp + (isHost ? 30 : 15),
+    xp: cur.xp + xpGained,
     partyHosted: cur.partyHosted + (isHost ? 1 : 0),
   };
   next.badges = computeUnlockedBadges(next);
   saveLocalRewards(uid, next);
   if (uid) void pushRewardsToCloud(uid, next);
+
+  const nextLvl = getLevelInfo(next.xp);
+  const newBadges = next.badges
+    .filter((b) => !prevBadges.has(b))
+    .map((id) => BADGE_CATALOG.find((c) => c.id === id)?.name || id);
+
+  emitXpToast({
+    xpGained,
+    reason: isHost ? "Watch Party Host" : "Joined Watch Party",
+    streak: next.streak,
+    leveledUp: nextLvl.level > prevLvl,
+    level: nextLvl.level,
+    levelTitle: nextLvl.title,
+    newBadges,
+  });
+
   return next;
 }
