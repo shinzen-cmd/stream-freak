@@ -9,6 +9,7 @@ import {
   Loader2,
   LogOut,
   Maximize2,
+  Minimize2,
   MessageSquare,
   MonitorUp,
   Radio,
@@ -86,6 +87,9 @@ function PartyPageInner() {
 
   // Chat & Presence state
   const [chatOpen, setChatOpen] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fsChatOpen, setFsChatOpen] = useState(true);
+  const [fsLatestToast, setFsLatestToast] = useState<ChatMessage | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [viewers, setViewers] = useState<string[]>([]);
@@ -99,8 +103,11 @@ function PartyPageInner() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const hostPeersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const viewerPeerRef = useRef<RTCPeerConnection | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatListRef = useRef<HTMLDivElement | null>(null);
+  const fsChatListRef = useRef<HTMLDivElement | null>(null);
+  const fsToastTimerRef = useRef<number | null>(null);
   const rewardedCodeRef = useRef<string>("");
 
   useEffect(() => {
@@ -342,9 +349,32 @@ function PartyPageInner() {
     };
   }, [activeCode, isHost, displayName, connectViewerAsHost, cleanupStreams]);
 
+  // Track browser fullscreen state on the cinema stage wrapper
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const onFsChange = () => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // Scroll ONLY inside the chat container (never yank the whole page scroll!)
+  useEffect(() => {
+    if (chatListRef.current) {
+      chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+    }
+    if (fsChatListRef.current) {
+      fsChatListRef.current.scrollTop = fsChatListRef.current.scrollHeight;
+    }
+
+    const latest = messages[messages.length - 1];
+    if (isFullscreen && !fsChatOpen && latest && !latest.isSystem) {
+      setFsLatestToast(latest);
+      if (fsToastTimerRef.current) window.clearTimeout(fsToastTimerRef.current);
+      fsToastTimerRef.current = window.setTimeout(() => setFsLatestToast(null), 4000);
+    }
+  }, [messages, isFullscreen, fsChatOpen]);
 
   const handleStartSharing = async () => {
     setError("");
@@ -472,7 +502,7 @@ function PartyPageInner() {
   };
 
   const handleToggleFullscreen = () => {
-    const el = videoRef.current;
+    const el = stageRef.current || videoRef.current;
     if (!el) return;
     if (document.fullscreenElement) {
       void document.exitFullscreen();
@@ -559,8 +589,15 @@ function PartyPageInner() {
 
         {/* Main Cinema Stage + Live Chat */}
         <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-[68vh]">
-          {/* Live Theater Video Stage */}
-          <div className="relative flex-1 rounded-2xl overflow-hidden bg-[#06070b] border border-white/10 min-h-[52vh] lg:min-h-[72vh] shadow-2xl flex items-center justify-center">
+          {/* Live Theater Video Stage (this whole wrapper goes fullscreen so chat works in fullscreen!) */}
+          <div
+            ref={stageRef}
+            className={`relative flex-1 overflow-hidden bg-[#06070b] flex items-center justify-center ${
+              isFullscreen
+                ? "w-screen h-screen rounded-none border-0"
+                : "rounded-2xl border border-white/10 min-h-[52vh] lg:min-h-[72vh] shadow-2xl"
+            }`}
+          >
             <video
               ref={videoRef}
               autoPlay
@@ -609,7 +646,11 @@ function PartyPageInner() {
 
             {/* Overlay Controls when Streaming */}
             {(isSharing || streamConnected) && (
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
+              <div
+                className={`absolute bottom-3 z-20 flex items-center gap-2 transition-all ${
+                  isFullscreen && fsChatOpen ? "right-[21rem]" : "right-3"
+                }`}
+              >
                 {!isHost && (
                   <button
                     type="button"
@@ -638,15 +679,109 @@ function PartyPageInner() {
                   </button>
                 )}
 
+                {isFullscreen && (
+                  <button
+                    type="button"
+                    onClick={() => setFsChatOpen((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold backdrop-blur-md cursor-pointer ${
+                      fsChatOpen
+                        ? "bg-emerald-600/90 border-emerald-400/50 text-white"
+                        : "bg-black/75 hover:bg-black/90 border-white/15 text-white"
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    {fsChatOpen ? "Hide Chat" : "Chat"}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleToggleFullscreen}
-                  aria-label="Fullscreen"
+                  aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                   className="p-2 rounded-xl bg-black/75 hover:bg-black/90 border border-white/15 text-white backdrop-blur-md cursor-pointer"
                 >
-                  <Maximize2 className="w-4 h-4" />
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
               </div>
+            )}
+
+            {/* Incoming Message Toast when Fullscreen Chat is Collapsed */}
+            {isFullscreen && !fsChatOpen && fsLatestToast && (
+              <div className="pointer-events-none absolute bottom-4 left-4 z-20 max-w-sm rounded-xl bg-black/75 backdrop-blur-md border border-white/15 px-3.5 py-2 shadow-xl">
+                <span className="text-[11px] font-bold text-emerald-400 mr-2">{fsLatestToast.sender}:</span>
+                <span className="text-xs text-white/90">{fsLatestToast.text}</span>
+              </div>
+            )}
+
+            {/* Fullscreen Translucent Chat Overlay Drawer */}
+            {isFullscreen && fsChatOpen && (
+              <aside className="absolute top-0 right-0 bottom-0 z-20 w-80 max-w-[85vw] bg-black/75 backdrop-blur-xl border-l border-white/10 flex flex-col">
+                <div className="flex items-center justify-between px-3.5 py-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-white">Live Chat</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFsChatOpen(false)}
+                    aria-label="Hide fullscreen chat"
+                    className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div ref={fsChatListRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+                  {messages.map((m) => (
+                    <div
+                      key={`fs-${m.id}`}
+                      className={
+                        m.isSystem
+                          ? "text-[11px] text-emerald-300/90 bg-emerald-500/15 border border-emerald-500/25 rounded-xl px-2.5 py-1.5"
+                          : "bg-white/[0.08] rounded-xl px-2.5 py-1.5"
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="text-[11px] font-bold text-emerald-400 truncate">{m.sender}</span>
+                        <span className="text-[10px] text-white/40 shrink-0">{m.time}</span>
+                      </div>
+                      <p className="text-xs text-white/95 break-words leading-relaxed">{m.text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="px-2.5 py-1.5 border-t border-white/10 flex items-center justify-between gap-1">
+                  {REACTIONS.map((emoji) => (
+                    <button
+                      key={`fs-${emoji}`}
+                      type="button"
+                      onClick={() => void handleReaction(emoji)}
+                      className="flex-1 py-1 rounded-lg hover:bg-white/15 active:scale-95 text-base transition cursor-pointer"
+                      aria-label={`React ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSendChat} className="p-2.5 border-t border-white/10 flex items-center gap-2">
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Message in fullscreen..."
+                    maxLength={400}
+                    className="flex-1 bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder:text-white/40 outline-none focus:border-emerald-400/60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    aria-label="Send message"
+                    className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition disabled:opacity-40 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </aside>
             )}
 
             {/* Floating Live Emoji Reactions */}
@@ -663,7 +798,7 @@ function PartyPageInner() {
             </div>
           </div>
 
-          {/* Live Chat Panel */}
+          {/* Live Chat Panel (Windowed Mode) */}
           {chatOpen && (
             <aside className="w-full lg:w-80 xl:w-96 rounded-2xl bg-[#0e1118] border border-white/10 flex flex-col overflow-hidden max-h-[52vh] lg:max-h-[72vh]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
@@ -681,7 +816,7 @@ function PartyPageInner() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-2.5">
+              <div ref={chatListRef} className="flex-1 overflow-y-auto px-3.5 py-3 space-y-2.5">
                 {messages.map((m) => (
                   <div
                     key={m.id}
@@ -698,7 +833,6 @@ function PartyPageInner() {
                     <p className="text-xs text-white/85 break-words leading-relaxed">{m.text}</p>
                   </div>
                 ))}
-                <div ref={chatEndRef} />
               </div>
 
               <div className="px-3 py-2 border-t border-white/[0.06] flex items-center justify-between gap-1 bg-white/[0.015]">
